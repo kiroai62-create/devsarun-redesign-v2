@@ -1,0 +1,56 @@
+# Devs Arun — Apache config (Hostinger / cPanel / any Apache with mod_rewrite)
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # If installed in a sub-folder, set e.g.:  RewriteBase /portfolio/
+  RewriteBase /
+
+  # --- Force HTTPS (uncomment once SSL is active) ---
+  # RewriteCond %{HTTPS} !=on
+  # RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # --- Block private folders & files ---
+  RewriteRule ^(app|database|storage|vendor|node_modules|\.git|\.kiro)(/|$) - [F,L]
+  RewriteRule ^(package(-lock)?\.json|tailwind\.config\.js|dev-router\.php|README\.md|composer\.(json|lock))$ - [F,L]
+  RewriteRule (^|/)\. - [F,L]
+
+  # --- Old .html URLs → clean directories ---
+  RewriteRule ^index\.html$ / [R=301,L]
+  RewriteRule ^pricing\.html$ /pricing/ [R=301,L]
+
+  # --- Add trailing slash to real directories ---
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^(.*[^/])$ /$1/ [R=301,L]
+
+  # --- Dynamic clean URLs ---
+  RewriteRule ^services/([a-z0-9-]+)/?$ services/index.php?slug=$1 [QSA,L]
+  RewriteRule ^brochure/([a-z0-9-]+)/?$ brochure/index.php?slug=$1 [QSA,L]
+  RewriteRule ^pay/([a-f0-9]{16,64})/?$ pay/index.php?t=$1 [QSA,L]
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+</IfModule>
+
+ErrorDocument 404 /404.php
+ErrorDocument 403 /404.php
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header unset X-Powered-By
+  <FilesMatch "\.(css|js|svg|png|jpe?g|webp|ico|woff2?)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml application/xml
+</IfModule>
+
+# PHP limits (honoured on most shared hosts)
+<IfModule mod_php.c>
+  php_value upload_max_filesize 10M
+  php_value post_max_size 12M
+  php_flag expose_php Off
+</IfModule>

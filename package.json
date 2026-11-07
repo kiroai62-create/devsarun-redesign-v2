@@ -1,0 +1,13 @@
+{
+  "name": "devsarun",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Devs Arun — portfolio, CRM & admin (PHP + MySQL + Tailwind)",
+  "scripts": {
+    "build:css": "tailwindcss -i assets/src/app.css -o assets/css/app.css --minify",
+    "watch:css": "tailwindcss -i assets/src/app.css -o assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

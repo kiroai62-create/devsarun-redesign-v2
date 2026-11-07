@@ -1,0 +1,10 @@
+node_modules/
+app/config.php
+storage/logs/*
+!storage/logs/.gitkeep
+storage/uploads/briefs/*
+!storage/uploads/briefs/.gitkeep
+uploads/brand/*
+!uploads/brand/.gitkeep
+.DS_Store
+*.log

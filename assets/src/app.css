@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body { font-feature-settings: "cv11", "ss01"; overflow-x: hidden; }
+  ::-webkit-scrollbar { width: 10px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 999px; }
+  [x-cloak] { display: none !important; }
+}
+
+@layer components {
+  .card {
+    @apply rounded-[28px] border border-white/[0.06] bg-white/[0.025] transition duration-300;
+  }
+  a.card:hover, .card-hover:hover {
+    @apply -translate-y-1 border-neo-green/25 bg-white/[0.04] shadow-[0_24px_60px_-20px_rgba(74,222,128,0.18)];
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-neo-green px-6 py-3.5 text-[15px] font-semibold text-neo-black transition hover:bg-neo-green/90 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-6 py-3.5 text-[15px] font-semibold text-white transition hover:border-neo-green/40 hover:text-neo-green active:scale-[.98];
+  }
+  .btn-sm { @apply px-4 py-2 text-sm; }
+  .label { @apply mb-2 block text-sm font-medium text-white/70; }
+  .field {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-[15px] text-white placeholder:text-white/30 transition focus:border-neo-green/50 focus:bg-white/[0.05] focus:outline-none focus:ring-4 focus:ring-neo-green/10;
+  }
+  select.field { @apply appearance-none bg-[length:16px] bg-[right_1rem_center] bg-no-repeat pr-10; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
+  select.field option { @apply bg-neo-black; }
+  .chip {
+    @apply inline-flex cursor-pointer select-none items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-white/70 transition hover:border-white/20;
+  }
+  .chip-input:checked + .chip, .chip.is-active {
+    @apply border-neo-green/50 bg-neo-green/10 text-neo-green;
+  }
+  .option-card {
+    @apply flex h-full cursor-pointer flex-col rounded-3xl border border-white/[0.07] bg-white/[0.02] p-5 transition hover:border-white/20;
+  }
+  .chip-input:checked + .option-card {
+    @apply border-neo-green/50 bg-neo-green/[0.07] ring-4 ring-neo-green/10;
+  }
+  .kicker { @apply font-mono text-xs uppercase tracking-[.25em] text-neo-green; }
+  .prose-da p { @apply mb-4 leading-relaxed text-white/65; }
+  .prose-da h2 { @apply mb-3 mt-10 text-xl font-semibold text-white; }
+  .prose-da ul { @apply mb-4 list-disc space-y-1.5 pl-5 text-white/65; }
+  .prose-da a { @apply text-neo-green underline-offset-4 hover:underline; }
+
+  /* Chat */
+  .msg { @apply max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-relaxed; }
+  .msg-bot { @apply self-start rounded-bl-lg bg-white/[0.05] text-white/85; }
+  .msg-bot a { @apply font-medium text-neo-green underline underline-offset-2; }
+  .msg-user { @apply self-end rounded-br-lg bg-neo-green font-medium text-neo-black; }
+  .chat-chip { @apply flex-none whitespace-nowrap rounded-full border border-neo-green/25 bg-neo-green/[0.06] px-3.5 py-2 text-xs font-medium text-neo-green transition hover:bg-neo-green/15; }
+  .typing span { @apply inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-neo-green; }
+  .typing span:nth-child(2) { animation-delay: .15s; }
+  .typing span:nth-child(3) { animation-delay: .3s; }
+
+  /* Admin */
+  .a-card { @apply rounded-3xl border border-white/[0.06] bg-white/[0.025] p-5; }
+  .a-table { @apply w-full text-left text-sm; }
+  .a-table th { @apply whitespace-nowrap border-b border-white/[0.06] px-4 py-3 font-mono text-[11px] font-medium uppercase tracking-wider text-white/40; }
+  .a-table td { @apply border-b border-white/[0.04] px-4 py-3 align-top text-white/75; }
+  .a-table tr:hover td { @apply bg-white/[0.015]; }
+  .a-input { @apply w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-neo-green/50 focus:outline-none focus:ring-4 focus:ring-neo-green/10; }
+  select.a-input option { @apply bg-neo-black; }
+  .a-btn { @apply inline-flex items-center justify-center gap-2 rounded-full bg-neo-green px-4 py-2 text-sm font-semibold text-neo-black transition hover:bg-neo-green/90 disabled:opacity-50; }
+  .a-btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/25 hover:text-white; }
+  .a-btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-full border border-red-400/30 px-4 py-2 text-sm font-medium text-red-300 transition hover:bg-red-400/10; }
+  .a-label { @apply mb-1.5 block text-xs font-medium text-white/55; }
+}
+
+@layer utilities {
+  .chat-scroll { scrollbar-width: thin; }
+  .text-balance { text-wrap: balance; }
+  .grid-bg {
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+  }
+  @media (max-width: 767px) {
+    .has-actionbar #ai-chat, .has-actionbar .wa-float { bottom: 88px !important; }
+    .has-actionbar footer { padding-bottom: 76px; }
+  }
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    * { animation-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
+}

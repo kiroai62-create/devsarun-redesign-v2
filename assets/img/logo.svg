@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Devs Arun">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4ADE80"/>
+      <stop offset="1" stop-color="#16A34A"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#111111"/>
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="none" stroke="#4ADE80" stroke-opacity=".28" stroke-width="2"/>
+  <!-- left chevron -->
+  <path d="M21 21 11 32l10 11" fill="none" stroke="url(#g)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the "A" peak, doubling as the slash in </> -->
+  <path d="M25 44 32 20l7 24" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M28.2 36h7.6" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <!-- right chevron -->
+  <path d="m43 21 10 11-10 11" fill="none" stroke="url(#g)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

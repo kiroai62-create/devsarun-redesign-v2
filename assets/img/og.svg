@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="r" cx=".5" cy="0" r=".8"><stop offset="0" stop-color="#4ADE80" stop-opacity=".22"/><stop offset="1" stop-color="#0A0A0A" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#0A0A0A"/>
+  <rect width="1200" height="630" fill="url(#r)"/>
+  <g transform="translate(96 96) scale(2)">
+    <rect width="64" height="64" rx="18" fill="#111"/>
+    <path d="M21 21 11 32l10 11M43 21l10 11-10 11" fill="none" stroke="#4ADE80" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M25 44 32 20l7 24M28.2 36h7.6" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="96" y="370" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="800">Websites, apps &amp; AI</text>
+  <text x="96" y="460" fill="#4ADE80" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="800">that bring you clients.</text>
+  <text x="96" y="540" fill="#9ca3af" font-family="JetBrains Mono, monospace" font-size="30">devsarun.io · every price negotiable</text>
+</svg>
