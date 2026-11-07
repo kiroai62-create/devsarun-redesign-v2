@@ -10,8 +10,8 @@ $leadsAll = (int)db_val('SELECT COUNT(*) FROM leads');
 $leads30 = (int)db_val('SELECT COUNT(*) FROM leads WHERE created_at >= (NOW() - INTERVAL 30 DAY)');
 $leadsNew = (int)db_val("SELECT COUNT(*) FROM leads WHERE status = 'new'");
 $won = (int)db_val("SELECT COUNT(*) FROM leads WHERE status = 'won'");
-$revenueAll = (int)db_val("SELECT COALESCE(SUM(amount_paise),0) FROM orders WHERE status = 'paid'") / 100;
-$revenue30 = (int)db_val("SELECT COALESCE(SUM(amount_paise),0) FROM orders WHERE status = 'paid' AND paid_at >= (NOW() - INTERVAL 30 DAY)") / 100;
+$revenueAll = revenue_text();
+$revenue30 = revenue_text('paid_at >= (NOW() - INTERVAL 30 DAY)');
 $pipeline = (int)db_val("SELECT COALESCE(SUM(value_estimate),0) FROM leads WHERE status NOT IN ('won','lost','spam')");
 $chats30 = (int)db_val('SELECT COUNT(*) FROM chat_sessions WHERE created_at >= (NOW() - INTERVAL 30 DAY)');
 $brochures30 = (int)db_val("SELECT COUNT(*) FROM events WHERE name = 'brochure_download' AND created_at >= (NOW() - INTERVAL 30 DAY)");
@@ -40,12 +40,12 @@ $svcCfg = ['type' => 'bar', 'data' => ['labels' => array_column($byService, 's')
 
 $recent = db_all('SELECT id, ref, name, email, service_label, budget, status, source, created_at FROM leads ORDER BY id DESC LIMIT 8');
 $followUps = db_all("SELECT id, ref, name, follow_up_at, status FROM leads WHERE follow_up_at IS NOT NULL AND follow_up_at <= CURDATE() AND status NOT IN ('won','lost','spam') ORDER BY follow_up_at LIMIT 8");
-$payments = db_all("SELECT order_no, item_title, amount_paise, customer_name, paid_at FROM orders WHERE status = 'paid' ORDER BY paid_at DESC LIMIT 5");
+$payments = db_all("SELECT order_no, item_title, amount_paise, currency, customer_name, paid_at FROM orders WHERE status = 'paid' ORDER BY paid_at DESC LIMIT 5");
 
 $setupWarnings = [];
 if (!smtp_configured()) $setupWarnings[] = ['SMTP email is not configured — client confirmations use PHP mail() fallback.', 'admin/settings/?tab=email'];
 if (!razorpay_enabled()) $setupWarnings[] = ['Razorpay is disabled — online booking & quote payments are off.', 'admin/settings/?tab=payments'];
-if (!ai_configured()) $setupWarnings[] = ['AI provider key not set — the assistant is using the built-in rules engine.', 'admin/settings/?tab=ai'];
+if (!ai_configured()) $setupWarnings[] = ['No AI key set — add a Groq key or Cloudflare Workers AI token so the assistant and the store AI writer work.', 'admin/settings/?tab=ai'];
 
 admin_start('Dashboard', 'dashboard');
 ?>
@@ -59,7 +59,7 @@ admin_start('Dashboard', 'dashboard');
   <?= admin_stat('Visitors (30d)', number_format($v30), $vToday . ' today · ' . number_format($pv30) . ' page views', 'users') ?>
   <?= admin_stat('Leads (30d)', (string)$leads30, $leadsNew . ' new · ' . $leadsAll . ' all time', 'pen') ?>
   <?= admin_stat('Conversion', $conv . '%', 'visitors → leads (30d)', 'chart') ?>
-  <?= admin_stat('Revenue (30d)', inr($revenue30), inr($revenueAll) . ' all time', 'lock') ?>
+  <?= admin_stat('Revenue (30d)', $revenue30, $revenueAll . ' all time', 'lock') ?>
   <?= admin_stat('Open pipeline', inr($pipeline), 'estimated value of open leads', 'briefcase') ?>
   <?= admin_stat('Won deals', (string)$won, 'leads marked won', 'star') ?>
   <?= admin_stat('AI chats (30d)', (string)$chats30, 'conversations started', 'bot') ?>
@@ -95,7 +95,7 @@ admin_start('Dashboard', 'dashboard');
       <ul class="mt-3 space-y-2 text-sm"><?php foreach ($followUps as $f): ?><li class="flex items-center justify-between gap-2"><a class="hover:text-neo-green" href="<?= e(url('admin/leads/view/?id=' . $f['id'])) ?>"><?= e($f['name']) ?> <span class="font-mono text-[11px] text-white/35"><?= e($f['ref']) ?></span></a><span class="text-xs <?= $f['follow_up_at'] < date('Y-m-d') ? 'text-red-300' : 'text-amber-200' ?>"><?= e(date('d M', strtotime($f['follow_up_at']))) ?></span></li><?php endforeach; ?>
       <?php if (!$followUps): ?><li class="text-white/40">Nothing due. 🎉</li><?php endif; ?></ul></div>
     <div class="a-card"><h2 class="font-semibold">Recent payments</h2>
-      <ul class="mt-3 space-y-2 text-sm"><?php foreach ($payments as $p): ?><li class="flex justify-between gap-2"><span class="truncate"><?= e($p['customer_name']) ?> <span class="block truncate text-xs text-white/40"><?= e($p['item_title']) ?></span></span><span class="font-semibold text-neo-green"><?= e(inr($p['amount_paise'] / 100)) ?></span></li><?php endforeach; ?>
+      <ul class="mt-3 space-y-2 text-sm"><?php foreach ($payments as $p): ?><li class="flex justify-between gap-2"><span class="truncate"><?= e($p['customer_name']) ?> <span class="block truncate text-xs text-white/40"><?= e($p['item_title']) ?></span></span><span class="font-semibold text-neo-green"><?= e(money((int)$p['amount_paise'], (string)$p['currency'])) ?></span></li><?php endforeach; ?>
       <?php if (!$payments): ?><li class="text-white/40">No payments yet.</li><?php endif; ?></ul></div>
   </div>
 </div>

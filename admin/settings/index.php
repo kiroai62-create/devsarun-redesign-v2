@@ -9,7 +9,7 @@ $fields = [
     'general' => ['site_name', 'owner_name', 'site_tagline', 'contact_email', 'notify_email', 'whatsapp', 'location', 'response_time', 'availability', 'github_url', 'instagram_url', 'twitter_url', 'threads_url'],
     'email' => ['smtp_host', 'smtp_port', 'smtp_encryption', 'smtp_user', 'smtp_pass', 'mail_from', 'mail_from_name'],
     'payments' => ['razorpay_enabled', 'razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'],
-    'ai' => ['ai_enabled', 'ai_provider', 'ai_model', 'ai_base_url', 'ai_api_key', 'ai_greeting', 'ai_knowledge'],
+    'ai' => ['ai_enabled', 'ai_fallback', 'ai_provider', 'groq_api_key', 'groq_model', 'cf_account_id', 'cf_api_token', 'cf_model', 'cf_worker_url', 'ai_other_provider', 'ai_model', 'ai_base_url', 'ai_api_key', 'ai_greeting', 'ai_knowledge'],
     'seo' => ['seo_title', 'seo_description'],
 ];
 $test = null;
@@ -55,11 +55,21 @@ if (is_post()) {
 
     if ($action === 'save' && isset($fields[$tab])) {
         foreach ($fields[$tab] as $k) {
-            if (in_array($k, ['razorpay_enabled', 'ai_enabled'], true)) {
+            if (in_array($k, ['razorpay_enabled', 'ai_enabled', 'ai_fallback'], true)) {
                 setting_set($k, !empty($_POST[$k]) ? '1' : '0');
                 continue;
             }
             $val = trim((string)($_POST[$k] ?? ''));
+            if ($k === 'ai_provider' && !array_key_exists($val, AI_PROVIDERS)) {
+                $val = 'groq';
+            } elseif ($k === 'ai_other_provider' && !in_array($val, ['gemini', 'openai', 'compatible'], true)) {
+                $val = 'gemini';
+            } elseif (in_array($k, ['cf_worker_url', 'ai_base_url'], true) && $val !== '' && !valid_url($val)) {
+                flash('error', ($k === 'cf_worker_url' ? 'Cloudflare Worker URL' : 'Base URL') . ' must be a full https:// URL — not saved.');
+                continue;
+            } elseif ($k === 'cf_account_id') {
+                $val = preg_replace('/[^a-f0-9]/i', '', $val) ?? '';
+            }
             if (in_array($k, SECRET_SETTINGS, true) && $val === '') {
                 continue; // keep existing secret
             }
@@ -108,9 +118,27 @@ if (is_post()) {
             flash('error', $e->getMessage());
         }
     } elseif ($action === 'test_ai') {
+        @set_time_limit(90);
         $q = trim(mb_substr((string)($_POST['test_q'] ?? 'What are your prices?'), 0, 500));
-        $res = ai_reply([['role' => 'user', 'content' => $q]]);
-        $_SESSION['ai_test'] = ['q' => $q, 'a' => $res['text'], 'engine' => $res['engine']];
+        $t0 = microtime(true);
+        $res = ai_reply([['role' => 'user', 'content' => $q]], '/');
+        $_SESSION['ai_test'] = ['q' => $q, 'a' => $res['text'], 'engine' => $res['engine'], 'ms' => (int)((microtime(true) - $t0) * 1000)];
+    } elseif ($action === 'test_providers') {
+        @set_time_limit(120);
+        $out = [];
+        foreach (array_keys(AI_PROVIDERS) as $p) {
+            if (!ai_provider_ready($p)) {
+                continue;
+            }
+            $t0 = microtime(true);
+            try {
+                $txt = trim(ai_strip_thinking(ai_call($p, [['role' => 'system', 'content' => 'You are a test endpoint.'], ['role' => 'user', 'content' => 'Reply with exactly: OK']], ['max_tokens' => 20, 'timeout' => 25])));
+                $out[$p] = [$txt !== '', $txt !== '' ? 'Replied “' . mb_substr($txt, 0, 60) . '”' : 'Empty reply — try another model', (int)((microtime(true) - $t0) * 1000)];
+            } catch (Throwable $e) {
+                $out[$p] = [false, mb_substr($e->getMessage(), 0, 300), (int)((microtime(true) - $t0) * 1000)];
+            }
+        }
+        $_SESSION['ai_providers_test'] = $out ?: ['none' => [false, 'No provider has a key yet. Add a Groq key or Cloudflare account ID + token above.', 0]];
     }
     redirect('admin/settings/?tab=' . $tab);
 }
@@ -118,6 +146,9 @@ if (isset($_SESSION['ai_test'])) {
     $test = $_SESSION['ai_test'];
     unset($_SESSION['ai_test']);
 }
+$providerTest = $_SESSION['ai_providers_test'] ?? null;
+unset($_SESSION['ai_providers_test']);
+$lastAiError = json_decode(setting('ai_last_error', ''), true) ?: null;
 
 $field = static function (string $k, string $label, string $type = 'text', string $help = '', string $ph = ''): void {
     $secret = in_array($k, SECRET_SETTINGS, true);
@@ -173,12 +204,33 @@ admin_start('Settings', 'settings');
       <div class="sm:col-span-2"><?php $field('razorpay_webhook_secret', 'Webhook secret', 'text', 'Razorpay Dashboard → Settings → Webhooks. Events: <code>payment.captured</code>, <code>order.paid</code>, <code>payment.failed</code>.'); ?></div>
       <div class="sm:col-span-2 rounded-2xl bg-white/[0.03] p-4 text-sm"><p class="a-label">Webhook URL</p><div class="flex flex-wrap items-center gap-2"><code class="break-all text-neo-green"><?= e(abs_url('api/razorpay-webhook/')) ?></code><button type="button" class="a-btn-ghost !py-1 text-xs" data-copy="<?= e(abs_url('api/razorpay-webhook/')) ?>">Copy</button></div></div>
     <?php elseif ($tab === 'ai'): ?>
-      <label class="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="ai_enabled" value="1" <?= setting('ai_enabled', '1') === '1' ? 'checked' : '' ?> class="accent-[#4ADE80]"> Assistant enabled on the website</label>
-      <div><label class="a-label">Provider</label><select class="a-input" name="ai_provider"><?php foreach (['gemini' => 'Google Gemini', 'openai' => 'OpenAI', 'compatible' => 'OpenAI-compatible (Groq, OpenRouter…)'] as $k => $l): ?><option value="<?= $k ?>" <?= setting('ai_provider', 'gemini') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
-      <?php $field('ai_model', 'Model', 'text', 'e.g. gemini-2.0-flash · gpt-4o-mini · llama-3.3-70b-versatile'); ?>
-      <?php $field('ai_api_key', 'API key', 'text', 'Encrypted at rest. Leave empty to use the built-in rules engine (free, offline).'); $field('ai_base_url', 'Base URL (compatible providers only)', 'url'); ?>
+      <div class="sm:col-span-2 rounded-2xl bg-white/[0.03] p-4 text-sm">
+        <p class="text-white/60">Answer order: <strong class="text-neo-green"><?= e(ai_engine_label()) ?></strong></p>
+        <?php if ($lastAiError): ?><p class="mt-2 text-xs text-amber-200/80">Last provider error (<?= e(time_ago($lastAiError['at'] ?? null)) ?>, <?= e(AI_PROVIDERS[$lastAiError['provider'] ?? ''] ?? ($lastAiError['provider'] ?? '')) ?>): <span class="break-all text-white/50"><?= e($lastAiError['msg'] ?? '') ?></span></p><?php endif; ?>
+        <p class="mt-2 text-xs text-white/40">The assistant automatically knows your services, packages, FAQs, store notes, portfolio, testimonials, policies and contact details — and expands the items relevant to each question.</p>
+      </div>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="ai_enabled" value="1" <?= setting('ai_enabled', '1') === '1' ? 'checked' : '' ?> class="accent-[#4ADE80]"> Assistant enabled on the website</label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="ai_fallback" value="1" <?= setting('ai_fallback', '1') === '1' ? 'checked' : '' ?> class="accent-[#4ADE80]"> If the primary fails, try the other providers</label>
+      <div class="sm:col-span-2"><label class="a-label">Primary provider</label><select class="a-input" name="ai_provider"><?php foreach (AI_PROVIDERS as $k => $l): ?><option value="<?= $k ?>" <?= setting('ai_provider', 'groq') === $k ? 'selected' : '' ?>><?= e($l) ?><?= ai_provider_ready($k) ? ' ✓' : '' ?></option><?php endforeach; ?></select></div>
+
+      <h3 class="mt-2 font-semibold text-neo-green sm:col-span-2">Groq</h3>
+      <?php $field('groq_api_key', 'Groq API key', 'text', 'Free key at <a class="text-neo-green" href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Encrypted at rest.', 'gsk_…'); ?>
+      <div><label class="a-label" for="f-groq_model">Groq model</label><input id="f-groq_model" class="a-input" name="groq_model" list="groq-models" value="<?= e(setting('groq_model', AI_DEFAULT_MODELS['groq'])) ?>"><datalist id="groq-models"><option value="openai/gpt-oss-120b"><option value="openai/gpt-oss-20b"><option value="qwen/qwen3.8-27b"></datalist><p class="mt-1 text-xs text-white/35">Llama models were retired from Groq's free tier in Aug 2026 — <code>openai/gpt-oss-120b</code> is the recommended default.</p></div>
+
+      <h3 class="mt-2 font-semibold text-neo-green sm:col-span-2">Cloudflare Workers AI</h3>
+      <?php $field('cf_account_id', 'Cloudflare account ID', 'text', 'Cloudflare dashboard → AI → Workers AI → “Use REST API”.', '32-character hex ID'); ?>
+      <?php $field('cf_api_token', 'Cloudflare API token', 'text', 'Create a token with the <strong>Workers AI</strong> permission. Encrypted at rest.'); ?>
+      <div><label class="a-label" for="f-cf_model">Workers AI model</label><input id="f-cf_model" class="a-input" name="cf_model" list="cf-models" value="<?= e(setting('cf_model', AI_DEFAULT_MODELS['cloudflare'])) ?>"><datalist id="cf-models"><option value="@cf/meta/llama-3.3-70b-instruct-fp8-fast"><option value="@cf/meta/llama-4-scout-17b-16e-instruct"><option value="@cf/qwen/qwen3-30b-a3b-fp8"><option value="@cf/mistralai/mistral-small-3.1-24b-instruct"></datalist></div>
+      <?php $field('cf_worker_url', 'Your own Worker URL (optional)', 'url', 'Only if you deployed a Worker that proxies Workers AI. It receives an OpenAI-style <code>{model, messages}</code> POST with the token as Bearer, and may answer in OpenAI or <code>{result:{response}}</code> format. Leave empty to call the Cloudflare REST API directly.', 'https://ai.your-worker.workers.dev'); ?>
+
+      <h3 class="mt-2 font-semibold text-white/80 sm:col-span-2">Other provider (optional)</h3>
+      <div><label class="a-label">Provider</label><select class="a-input" name="ai_other_provider"><?php foreach (['gemini' => 'Google Gemini', 'openai' => 'OpenAI', 'compatible' => 'OpenAI-compatible (OpenRouter, Together…)'] as $k => $l): ?><option value="<?= $k ?>" <?= ai_other_provider() === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
+      <?php $field('ai_model', 'Model', 'text', 'e.g. gemini-2.5-flash · gpt-4.1-mini · any OpenRouter model id'); ?>
+      <?php $field('ai_api_key', 'API key', 'text', 'Encrypted at rest.'); $field('ai_base_url', 'Base URL (OpenAI-compatible only)', 'url', '', 'https://openrouter.ai/api/v1'); ?>
+
+      <h3 class="mt-2 font-semibold text-white/80 sm:col-span-2">Personality & knowledge</h3>
       <div class="sm:col-span-2"><?php $field('ai_greeting', 'Greeting message'); ?></div>
-      <div class="sm:col-span-2"><?php $field('ai_knowledge', 'Extra training / knowledge', 'textarea', 'Facts, offers, policies, FAQs. Services, prices and the “every price is negotiable” rule are added automatically from the Services table.', "- Diwali offer: 10% off landing pages\n- We also provide hosting setup"); ?></div>
+      <div class="sm:col-span-2"><?php $field('ai_knowledge', 'Extra training / knowledge', 'textarea', 'Facts, offers, policies, FAQs, your story. Services, packages, store notes, portfolio and policies are added automatically.', "- Diwali offer: 10% off landing pages\n- We also provide hosting setup"); ?></div>
     <?php elseif ($tab === 'seo'): ?>
       <div class="sm:col-span-2"><?php $field('seo_title', 'Homepage title'); ?></div>
       <div class="sm:col-span-2"><?php $field('seo_description', 'Homepage meta description', 'textarea'); ?></div>
@@ -192,9 +244,13 @@ admin_start('Settings', 'settings');
   <?php elseif ($tab === 'payments' && can('owner')): ?>
     <form method="post" class="a-card mt-4 flex max-w-3xl items-center justify-between gap-3"><?= csrf_field() ?><input type="hidden" name="action" value="test_razorpay"><p class="text-sm text-white/55">Check that the saved Key ID / Secret are accepted by Razorpay.</p><button class="a-btn-ghost">Test credentials</button></form>
   <?php elseif ($tab === 'ai'): ?>
+    <form method="post" class="a-card mt-4 max-w-3xl"><?= csrf_field() ?><input type="hidden" name="action" value="test_providers">
+      <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-sm text-white/55">Check every saved key/model with a tiny request.</p><?php if (can('owner')): ?><button class="a-btn-ghost">Test providers</button><?php endif; ?></div>
+      <?php if ($providerTest): ?><ul class="mt-4 space-y-2 text-sm"><?php foreach ($providerTest as $p => [$ok, $msg, $ms]): ?><li class="flex flex-wrap items-start gap-2 rounded-2xl bg-white/[0.03] px-4 py-3"><span><?= $ok ? '✅' : '❌' ?></span><strong><?= e(AI_PROVIDERS[$p] ?? 'Setup') ?></strong><?php if ($ms): ?><span class="text-xs text-white/35"><?= (int)$ms ?> ms · <?= e(ai_model($p)) ?></span><?php endif; ?><span class="w-full break-all text-xs text-white/55"><?= e($msg) ?></span></li><?php endforeach; ?></ul><?php endif; ?>
+    </form>
     <form method="post" class="a-card mt-4 max-w-3xl"><?= csrf_field() ?><input type="hidden" name="action" value="test_ai">
       <label class="a-label">Test the assistant</label><div class="flex gap-2"><input class="a-input" name="test_q" value="<?= e($test['q'] ?? 'Website banane ka kitna price hai?') ?>"><?php if (can('owner')): ?><button class="a-btn-ghost flex-none">Ask</button><?php endif; ?></div>
-      <?php if ($test): ?><div class="msg msg-bot mt-4 max-w-none"><?= chat_format($test['a']) ?><span class="mt-2 block text-[10px] text-white/40">engine: <?= e($test['engine']) ?></span></div><?php endif; ?>
+      <?php if ($test): ?><div class="msg msg-bot mt-4 max-w-none"><?= chat_format($test['a']) ?><span class="mt-2 block text-[10px] text-white/40">engine: <?= e(AI_PROVIDERS[$test['engine']] ?? $test['engine']) ?> · <?= (int)($test['ms'] ?? 0) ?> ms</span></div><?php endif; ?>
     </form>
   <?php endif; ?>
 <?php endif; ?>

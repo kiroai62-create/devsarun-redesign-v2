@@ -114,6 +114,7 @@ if (is_file($configFile) && (int)setting('schema_version', '1') < SCHEMA_VERSION
 require APP . '/auth.php';
 require APP . '/mailer.php';
 require APP . '/razorpay.php';
+require APP . '/store.php';
 require APP . '/ai.php';
 require APP . '/analytics.php';
 require APP . '/content.php';

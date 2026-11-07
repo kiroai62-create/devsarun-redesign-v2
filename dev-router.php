@@ -16,6 +16,7 @@ if (preg_match('#^/(app|database|storage|vendor|node_modules|\.git|\.kiro)(/|$)#
 }
 $routes = [
     '#^/services/([a-z0-9-]+)/?$#' => ['/services/index.php', 'slug'],
+    '#^/store/([a-z0-9-]+)/?$#' => ['/store/index.php', 'slug'],
     '#^/brochure/([a-z0-9-]+)/?$#' => ['/brochure/index.php', 'slug'],
     '#^/pay/([a-f0-9]{16,64})/?$#' => ['/pay/index.php', 't'],
 ];

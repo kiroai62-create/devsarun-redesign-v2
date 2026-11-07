@@ -43,6 +43,8 @@
     @apply border-neo-green/50 bg-neo-green/[0.07] ring-4 ring-neo-green/10;
   }
   .kicker { @apply font-mono text-xs uppercase tracking-[.25em] text-neo-green; }
+  .cur-btn { @apply text-white/55 transition hover:text-white; }
+  .cur-btn.is-active { @apply bg-neo-green text-neo-black hover:text-neo-black; }
   .prose-da p { @apply mb-4 leading-relaxed text-white/65; }
   .prose-da h2 { @apply mb-3 mt-10 text-xl font-semibold text-white; }
   .prose-da ul { @apply mb-4 list-disc space-y-1.5 pl-5 text-white/65; }

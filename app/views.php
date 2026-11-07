@@ -17,14 +17,15 @@ function brand_favicon_url(): string
 
 function nav_items(): array
 {
-    return [
+    return array_filter([
         'services' => ['Services', 'services/'],
+        'store' => store_enabled() ? ['Store', 'store/'] : null,
         'work' => ['Work', 'work/'],
         'pricing' => ['Pricing', 'pricing/'],
         'aeo-geo' => ['AEO / GEO', 'aeo-geo/'],
         'about' => ['About', 'about/'],
         'contact' => ['Contact', 'contact/'],
-    ];
+    ]);
 }
 
 /**
@@ -61,7 +62,7 @@ function page_start(array $meta = []): void
 <meta property="og:title" content="<?= e($title) ?>">
 <meta property="og:description" content="<?= e($desc) ?>">
 <meta property="og:url" content="<?= e($canonical) ?>">
-<meta property="og:image" content="<?= e(abs_url('assets/img/og.svg')) ?>">
+<meta property="og:image" content="<?= e($meta['image'] ?? abs_url('assets/img/og.svg')) ?>">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="<?= e(brand_favicon_url()) ?>">
 <link rel="apple-touch-icon" href="<?= e(brand_favicon_url()) ?>">
@@ -84,10 +85,15 @@ function page_start(array $meta = []): void
       </a>
       <div class="hidden items-center gap-1 lg:flex">
         <?php foreach (nav_items() as $key => [$label, $href]): ?>
+          <?php if ($key === 'store'): ?>
+          <a href="<?= e(url($href)) ?>" data-track="cta_click" data-label="nav_store" class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition <?= $active === $key ? 'bg-neo-green/15 text-neo-green' : 'text-neo-green/90 hover:bg-neo-green/10 hover:text-neo-green' ?>"><?= icon('cart', 'h-4 w-4') ?><?= e($label) ?></a>
+          <?php else: ?>
           <a href="<?= e(url($href)) ?>" class="rounded-full px-3.5 py-2 text-sm transition <?= $active === $key ? 'bg-white/[0.06] text-white' : 'text-white/60 hover:text-white' ?>"><?= e($label) ?></a>
+          <?php endif; ?>
         <?php endforeach; ?>
       </div>
       <div class="flex items-center gap-2">
+        <?php if (store_enabled()): ?><a href="<?= e(url('store/')) ?>" data-track="cta_click" data-label="nav_store_mobile" class="inline-flex h-11 items-center gap-1.5 rounded-full border border-neo-green/30 px-3.5 text-sm font-semibold text-neo-green lg:hidden" aria-label="Store"><?= icon('cart', 'h-4 w-4') ?><span class="hidden min-[380px]:inline">Store</span></a><?php endif; ?>
         <a href="<?= e(url('start-project/')) ?>" data-track="cta_click" data-label="nav_start" class="hidden rounded-full bg-neo-green px-5 py-2.5 text-sm font-semibold text-neo-black transition hover:bg-neo-green/90 sm:inline-flex">Start a project</a>
         <button type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:bg-white/5 lg:hidden" data-menu-open aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu"><?= icon('menu', 'h-6 w-6') ?></button>
       </div>
@@ -104,7 +110,7 @@ function page_start(array $meta = []): void
     </div>
     <div class="grid gap-1">
       <?php foreach (nav_items() as $key => [$label, $href]): ?>
-        <a href="<?= e(url($href)) ?>" class="rounded-2xl px-4 py-3.5 text-base <?= $active === $key ? 'bg-white/[0.06] text-white' : 'text-white/70' ?>"><?= e($label) ?></a>
+        <a href="<?= e(url($href)) ?>" class="flex items-center gap-2 rounded-2xl px-4 py-3.5 text-base <?= $active === $key ? 'bg-white/[0.06] text-white' : ($key === 'store' ? 'text-neo-green' : 'text-white/70') ?>"><?php if ($key === 'store') echo icon('cart', 'h-5 w-5'); ?><?= e($label) ?><?php if ($key === 'store'): ?><span class="ml-auto rounded-full bg-neo-green/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider">Notes</span><?php endif; ?></a>
       <?php endforeach; ?>
       <a href="<?= e(url('track/')) ?>" class="rounded-2xl px-4 py-3.5 text-base text-white/70">Track my request</a>
       <a href="<?= e(url('start-project/')) ?>" class="mt-2 rounded-full bg-neo-green px-5 py-3.5 text-center font-semibold text-neo-black">Start a project</a>
@@ -144,6 +150,7 @@ function page_end(): void
       <div>
         <p class="font-mono text-xs uppercase tracking-[.2em] text-white/40">Company</p>
         <ul class="mt-4 space-y-2.5 text-sm text-white/60">
+          <?php if (store_enabled()): ?><li><a class="text-neo-green/90 hover:text-neo-green" href="<?= e(url('store/')) ?>">Notes store</a></li><?php endif; ?>
           <li><a class="hover:text-white" href="<?= e(url('work/')) ?>">Work</a></li>
           <li><a class="hover:text-white" href="<?= e(url('about/')) ?>">About</a></li>
           <li><a class="hover:text-white" href="<?= e(url('pricing/')) ?>">Pricing</a></li>
@@ -165,7 +172,7 @@ function page_end(): void
   </div>
   <div class="border-t border-white/[0.06]">
     <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-6 text-xs text-white/40 sm:flex-row sm:px-6">
-      <p>© <?= date('Y') ?> <?= e($site) ?>. All prices in INR · always negotiable.</p>
+      <p>© <?= date('Y') ?> <?= e($site) ?>. Service prices are always negotiable.</p>
       <p class="font-mono"><span class="text-neo-green">●</span> <?= e(setting('availability', 'Accepting new projects')) ?></p>
     </div>
   </div>
@@ -178,7 +185,7 @@ function page_end(): void
 <?php enquiry_modal(); ?>
 
 <!-- AI assistant -->
-<div id="ai-chat" class="fixed bottom-5 right-5 z-50" data-greeting="<?= e(setting('ai_greeting')) ?>">
+<div id="ai-chat" class="fixed bottom-5 right-5 z-50" data-greeting="<?= e(setting('ai_greeting')) ?>" data-store="<?= store_enabled() && products_published() ? '1' : '0' ?>">
   <div id="ai-window" class="absolute bottom-16 right-0 hidden w-[min(92vw,380px)] flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#0d0d0d] shadow-2xl shadow-black/60" role="dialog" aria-label="AI assistant">
     <div class="flex items-center justify-between border-b border-white/[0.06] px-4 py-3.5">
       <div class="flex items-center gap-3">

@@ -214,6 +214,16 @@ function price_text(array $svc): string
     return $t . ($svc['price_suffix'] ?? '');
 }
 
+/** Format an amount stored in minor units (paise / cents) for its currency. */
+function money(int|float $minor, string $currency = 'INR'): string
+{
+    if (strtoupper($currency) === 'USD') {
+        $v = $minor / 100;
+        return '$' . (fmod($v, 1.0) === 0.0 ? number_format($v) : number_format($v, 2));
+    }
+    return inr($minor / 100);
+}
+
 function time_ago(?string $datetime): string
 {
     if (!$datetime) {
@@ -274,7 +284,7 @@ function decrypt_str(string $enc): string
 
 /* ---------------- Settings (key/value, secrets encrypted) ---------------- */
 
-const SECRET_SETTINGS = ['smtp_pass', 'razorpay_key_secret', 'razorpay_webhook_secret', 'ai_api_key'];
+const SECRET_SETTINGS = ['smtp_pass', 'razorpay_key_secret', 'razorpay_webhook_secret', 'ai_api_key', 'groq_api_key', 'cf_api_token'];
 
 function settings_all(bool $refresh = false): array
 {

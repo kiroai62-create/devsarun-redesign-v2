@@ -7,6 +7,7 @@ const TRACKABLE_EVENTS = [
     'cta_click', 'brochure_view', 'brochure_download', 'chat_open', 'chat_message', 'form_start', 'form_step',
     'form_submit', 'contact_submit', 'checkout_open', 'payment_success', 'payment_failed', 'whatsapp_click',
     'outbound_click', 'service_view', 'audit_request', 'track_lookup', 'quote_view', 'enquiry_submit', 'enquire_open',
+    'product_view', 'product_preview', 'buy_click', 'product_download',
 ];
 
 function is_bot(): bool

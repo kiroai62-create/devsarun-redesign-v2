@@ -52,4 +52,5 @@ $skills = [
     <?php endforeach; ?>
   </div>
 </section>
+<?php store_section('notes & resources', 'Learn from my <span class="text-neo-green">notes</span>', 'I also share what I know as structured PDF notes — preview them free, buy once and keep them forever.'); ?>
 <?php cta_band(); page_end();

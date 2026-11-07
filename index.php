@@ -78,6 +78,8 @@ page_start(['active' => 'home']);
   <div class="mt-10 text-center"><a href="<?= e(url('services/')) ?>" class="btn-ghost">View all <?= count(services_active()) ?> services <?= icon('arrow', 'h-4 w-4') ?></a></div>
 </section>
 
+<?php store_section('from the store', 'Study notes <span class="text-neo-green">by me</span>', 'Clear, exam-ready PDF notes. Read the first pages free, pay securely with Razorpay and download instantly.'); ?>
+
 <?php if ($aeo): ?>
 <!-- AEO / GEO -->
 <section class="mx-auto mt-28 max-w-6xl px-5 sm:px-6">
@@ -163,7 +165,7 @@ page_start(['active' => 'home']);
     <?php foreach ([
         ['Are the prices fixed?', 'No — every price is a starting point and fully negotiable. Share your budget and requirement; we will shape the right scope.'],
         ['How fast can you deliver?', 'Landing pages in 1–3 days, business websites in about a week, apps and custom software in planned milestones.'],
-        ['Can I pay online?', 'Yes. Some services can be booked directly on their page, and every negotiated quote gets a secure Razorpay payment link (UPI, cards, netbanking).'],
+        ['Can I pay online?', 'Yes. Some services can be booked directly on their page, and every negotiated quote gets a secure Razorpay payment link (UPI, cards, netbanking).' . (store_enabled() && products_published() ? ' Notes in the store are paid online and download instantly.' : '')],
         ['Do you work with clients outside India?', 'Yes — NRI and international clients are welcome. Quotes can be shared in USD.'],
         ['How do I track my project request?', 'After you submit a brief you get a reference ID. Use it with your email on the Track page to see live status updates.'],
     ] as [$q, $a]): ?>

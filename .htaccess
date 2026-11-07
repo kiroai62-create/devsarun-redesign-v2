@@ -28,6 +28,7 @@ ServerSignature Off
 
   # --- Dynamic clean URLs ---
   RewriteRule ^services/([a-z0-9-]+)/?$ services/index.php?slug=$1 [QSA,L]
+  RewriteRule ^store/([a-z0-9-]+)/?$ store/index.php?slug=$1 [QSA,L]
   RewriteRule ^brochure/([a-z0-9-]+)/?$ brochure/index.php?slug=$1 [QSA,L]
   RewriteRule ^pay/([a-f0-9]{16,64})/?$ pay/index.php?t=$1 [QSA,L]
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
@@ -50,7 +51,12 @@ ErrorDocument 403 /404.php
 
 # PHP limits (honoured on most shared hosts)
 <IfModule mod_php.c>
-  php_value upload_max_filesize 10M
-  php_value post_max_size 12M
+  php_value upload_max_filesize 64M
+  php_value post_max_size 70M
+  php_value max_execution_time 180
   php_flag expose_php Off
 </IfModule>
+
+# Module scripts / WebAssembly used by the admin PDF reader (assets/vendor/pdfjs)
+AddType text/javascript .mjs
+AddType application/wasm .wasm

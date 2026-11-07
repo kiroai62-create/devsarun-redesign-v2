@@ -7,6 +7,7 @@ if (!is_post()) {
     json_out(['ok' => false, 'error' => 'Method not allowed'], 405);
 }
 csrf_check(true);
+@set_time_limit(75); // room for provider fallback
 
 $action = input('action', 20);
 $token = preg_replace('/[^a-f0-9]/', '', input('token', 64));
@@ -92,8 +93,9 @@ if ($updates) {
     }
 }
 
-$history = array_map(static fn($r) => ['role' => $r['role'] === 'user' ? 'user' : 'assistant', 'content' => $r['content']], array_reverse(db_all('SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 14', [$sid])));
-$reply = ai_reply($history);
+$history = array_map(static fn($r) => ['role' => $r['role'] === 'user' ? 'user' : 'assistant', 'content' => $r['content']], array_reverse(db_all('SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 12', [$sid])));
+$page = (string)parse_url(input('page', 255), PHP_URL_PATH);
+$reply = ai_reply($history, $page !== '' ? $page : (string)$session['page']);
 $text = mb_substr($reply['text'], 0, 4000);
 
 db_insert('chat_messages', ['session_id' => $sid, 'role' => 'assistant', 'content' => $text, 'created_at' => now()]);
@@ -105,7 +107,9 @@ $chips = ['Start a project', 'Is the price negotiable?'];
 if (!$session['email'] && !$session['phone'] && (int)$session['messages_count'] >= 2) {
     array_unshift($chips, 'Share my WhatsApp number');
 }
-if (str_contains($low, 'aeo') || str_contains($low, 'geo')) {
+if (store_enabled() && preg_match('/\b(notes?|pdf|store|ebook|exam)\b/u', $low)) {
+    $chips = ['How do I get the PDF after paying?', 'Can I pay in USD?', 'Show me all notes'];
+} elseif (str_contains($low, 'aeo') || str_contains($low, 'geo')) {
     $chips[] = 'What do I get for $199?';
 } elseif (str_contains($low, 'website')) {
     $chips[] = 'How long does a website take?';

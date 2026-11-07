@@ -40,6 +40,34 @@
 
   window.DA = { api: api, toast: toast, track: track, base: BASE, csrf: CSRF };
 
+  /* Store currency (INR / USD). Prices carry data-cur-show; toggles carry data-set-cur. */
+  function readCookie(n) { var m = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
+  function setCurrency(cur, remember) {
+    if (cur !== 'INR' && cur !== 'USD') return;
+    window.DA.currency = cur;
+    document.querySelectorAll('[data-cur-show]').forEach(function (el) { el.classList.toggle('hidden', el.getAttribute('data-cur-show') !== cur); });
+    document.querySelectorAll('[data-set-cur]').forEach(function (b) {
+      var on = b.getAttribute('data-set-cur') === cur;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (remember) document.cookie = 'da_cur=' + cur + '; path=' + (BASE || '') + '/; max-age=31536000; samesite=lax';
+    document.dispatchEvent(new CustomEvent('da:currency', { detail: cur }));
+  }
+  (function () {
+    var saved = readCookie('da_cur');
+    if (saved) { setCurrency(saved, false); return; }
+    if (!document.querySelector('[data-cur-show],[data-set-cur]')) return;
+    var tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* ignore */ }
+    setCurrency(/Calcutta|Kolkata/i.test(tz) ? 'INR' : 'USD', true);
+  })();
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-set-cur]');
+    if (b) { e.preventDefault(); setCurrency(b.getAttribute('data-set-cur'), true); }
+  });
+  window.DA.setCurrency = setCurrency;
+
   /* Mobile menu */
   var menu = document.getElementById('mobile-menu');
   var openBtn = document.querySelector('[data-menu-open]');
@@ -211,6 +239,7 @@
   var started = false;
   var busy = false;
   var DEFAULT_CHIPS = ['💰 Pricing', '🌐 I need a website', '📱 Android app', '🤖 AI chatbot', '✨ What is AEO/GEO?', '🤝 Is price negotiable?'];
+  if (chat && chat.getAttribute('data-store') === '1') DEFAULT_CHIPS.splice(1, 0, '📚 Show me the notes in your store');
 
   function addMsg(role, html, isHtml) {
     var d = document.createElement('div');

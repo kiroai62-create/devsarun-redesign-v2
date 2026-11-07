@@ -8,3 +8,7 @@ uploads/brand/*
 !uploads/brand/.gitkeep
 .DS_Store
 *.log
+storage/products/*
+!storage/products/.gitkeep
+uploads/store/*
+!uploads/store/.gitkeep

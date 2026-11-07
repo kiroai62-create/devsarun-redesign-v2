@@ -340,4 +340,5 @@ $slugs = array_column($all, null, 'slug');
     <?php endforeach; ?>
   </div>
 </section>
+<?php store_section('also from me', 'Want to learn it <span class="text-neo-green">yourself?</span>', 'PDF notes from the store — preview pages free, instant download.'); ?>
 <?php cta_band('Not sure which service fits?', 'Tell me about your business and goal. I will suggest the right-size scope for your budget — free.'); page_end();

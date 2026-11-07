@@ -15,6 +15,7 @@ function admin_nav(): array
         ['emails', 'Email center', 'admin/emails/', 'mail', 0],
         ['analytics', 'Analytics', 'admin/analytics/', 'search', 0],
         ['services', 'Services', 'admin/services/', 'sparkles', 0],
+        ['store', 'Store (notes)', 'admin/store/', 'cart', 0],
         ['projects', 'Portfolio', 'admin/projects/', 'briefcase', 0],
         ['testimonials', 'Testimonials', 'admin/testimonials/', 'star', 0],
         ['settings', 'Settings', 'admin/settings/', 'wrench', 0],

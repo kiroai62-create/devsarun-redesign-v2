@@ -14,23 +14,41 @@ if (rate_limited('order', 10, 600)) {
     json_out(['ok' => false, 'error' => 'Too many attempts. Please wait a few minutes.'], 429);
 }
 
+$type = input('type', 10);
+$key = input('key', 120);
 $name = single_line(input('name', 120));
 $email = strtolower(input('email', 190));
 $phone = input('phone', 20);
-if (mb_strlen($name) < 2 || !valid_email($email) || !valid_phone($phone)) {
-    json_out(['ok' => false, 'error' => 'Please enter a valid name, email and phone number.'], 422);
+$phoneOk = valid_phone($phone) || ($type === 'product' && $phone === ''); // phone is optional for digital products
+if (mb_strlen($name) < 2 || !valid_email($email) || !$phoneOk) {
+    json_out(['ok' => false, 'error' => $type === 'product' ? 'Please enter your name and a valid email (the PDF link is sent there).' : 'Please enter a valid name, email and phone number.'], 422);
 }
 if (input('agree') !== '1') {
     json_out(['ok' => false, 'error' => 'Please accept the terms and refund policy.'], 422);
 }
 
-$type = input('type', 10);
-$key = input('key', 80);
 $serviceId = null;
 $quoteId = null;
 $leadId = null;
+$productId = null;
+$currency = 'INR';
 
-if ($type === 'quote') {
+if ($type === 'product') {
+    $p = store_enabled() ? product_by_slug(preg_replace('/[^a-z0-9-]/', '', $key)) : null;
+    if (!$p || !store_pdf_path($p['file_path'])) {
+        json_out(['ok' => false, 'error' => 'This product is not available right now.'], 410);
+    }
+    $currency = strtoupper(input('currency', 3)) === 'USD' ? 'USD' : 'INR';
+    if (!in_array($currency, product_currencies($p), true)) {
+        $currency = product_currencies($p)[0] ?? 'INR';
+    }
+    $amountPaise = product_amount($p, $currency);
+    if ($amountPaise <= 0) {
+        json_out(['ok' => false, 'error' => 'This product is not available right now.'], 410);
+    }
+    $title = mb_substr($p['title'], 0, 190);
+    $productId = (int)$p['id'];
+} elseif ($type === 'quote') {
     $q = db_row('SELECT * FROM quotes WHERE token = ?', [preg_replace('/[^a-f0-9]/', '', $key)]);
     if (!$q || $q['status'] !== 'sent' || ($q['valid_until'] && $q['valid_until'] < date('Y-m-d'))) {
         json_out(['ok' => false, 'error' => 'This quote is no longer payable.'], 410);
@@ -48,15 +66,15 @@ if ($type === 'quote') {
     $amountPaise = (int)$s['buy_price'] * 100;
     $serviceId = (int)$s['id'];
 }
-if ($amountPaise < 100) {
+if ($amountPaise < ($currency === 'USD' ? 50 : 100)) {
     json_out(['ok' => false, 'error' => 'Invalid amount.'], 422);
 }
 
 $orderNo = 'ORD-' . date('ymd') . '-' . strtoupper(substr(random_token(4), 0, 5));
 $accessToken = random_token(16);
 
-// Create a CRM lead for service bookings so every buyer shows in the pipeline.
-if (!$leadId) {
+// Create a CRM lead for service bookings so every buyer shows in the pipeline (store purchases stay in Payments only).
+if (!$leadId && !$productId) {
     $attr = attribution();
     $leadId = db_insert('leads', [
         'ref' => lead_ref(), 'source' => 'checkout', 'service_id' => $serviceId, 'service_label' => $title, 'project_title' => 'Online booking: ' . $title,
@@ -69,20 +87,23 @@ if (!$leadId) {
 }
 
 try {
-    $rzp = razorpay_create_order($amountPaise, $orderNo, ['order_no' => $orderNo, 'item' => $title, 'email' => $email]);
+    $rzp = razorpay_create_order($amountPaise, $orderNo, ['order_no' => $orderNo, 'item' => $title, 'email' => $email], $currency);
 } catch (Throwable $e) {
     error_log('Razorpay order error: ' . $e->getMessage());
+    if ($currency === 'USD') {
+        json_out(['ok' => false, 'error' => 'USD payments are not available right now. Please switch to INR (₹) and try again.', 'switch_currency' => 'INR'], 502);
+    }
     json_out(['ok' => false, 'error' => 'Payment gateway is unavailable right now. Please try again shortly.'], 502);
 }
 
 db_insert('orders', [
-    'order_no' => $orderNo, 'access_token' => $accessToken, 'service_id' => $serviceId, 'quote_id' => $quoteId, 'lead_id' => $leadId,
-    'item_title' => mb_substr($title, 0, 190), 'amount_paise' => $amountPaise, 'currency' => 'INR',
-    'customer_name' => $name, 'customer_email' => $email, 'customer_phone' => $phone, 'notes' => input('notes', 1000) ?: null,
+    'order_no' => $orderNo, 'access_token' => $accessToken, 'service_id' => $serviceId, 'quote_id' => $quoteId, 'product_id' => $productId, 'lead_id' => $leadId,
+    'item_title' => mb_substr($title, 0, 190), 'amount_paise' => $amountPaise, 'currency' => $currency,
+    'customer_name' => $name, 'customer_email' => $email, 'customer_phone' => $phone !== '' ? $phone : null, 'notes' => input('notes', 1000) ?: null,
     'status' => 'created', 'razorpay_order_id' => $rzp['id'], 'created_at' => now(),
 ]);
 
 json_out([
-    'ok' => true, 'key' => setting('razorpay_key_id'), 'amount' => $amountPaise, 'razorpay_order_id' => $rzp['id'], 'order_no' => $orderNo,
-    'title' => $title, 'site' => setting('site_name', 'Devs Arun'), 'prefill' => ['name' => $name, 'email' => $email, 'contact' => $phone],
+    'ok' => true, 'key' => setting('razorpay_key_id'), 'amount' => $amountPaise, 'currency' => $currency, 'razorpay_order_id' => $rzp['id'], 'order_no' => $orderNo,
+    'title' => $title, 'site' => setting('site_name', 'Devs Arun'), 'prefill' => array_filter(['name' => $name, 'email' => $email, 'contact' => $phone]),
 ]);

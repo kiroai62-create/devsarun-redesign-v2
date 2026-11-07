@@ -25,7 +25,7 @@
       var rzp = new window.Razorpay({
         key: res.key,
         amount: res.amount,
-        currency: 'INR',
+        currency: res.currency || 'INR',
         name: res.site,
         description: res.title,
         order_id: res.razorpay_order_id,

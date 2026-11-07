@@ -77,11 +77,11 @@ function razorpay_test_credentials(): void
     razorpay_request('GET', 'orders?count=1');
 }
 
-function razorpay_create_order(int $amountPaise, string $receipt, array $notes = []): array
+function razorpay_create_order(int $amountPaise, string $receipt, array $notes = [], string $currency = 'INR'): array
 {
     $payload = [
         'amount' => $amountPaise,
-        'currency' => 'INR',
+        'currency' => $currency === 'USD' ? 'USD' : 'INR',
         'receipt' => mb_substr($receipt, 0, 40),
         'payment_capture' => 1,
         'notes' => array_map(static fn($v) => mb_substr((string)$v, 0, 250), array_slice($notes, 0, 10, true)),
@@ -161,12 +161,39 @@ function order_mark_paid(array $order, string $paymentId, string $method = ''): 
     }
     track_event('payment_success', $order['order_no'], (int)$order['service_id'] ?: null);
 
+    $amount = money((int)$order['amount_paise'], (string)($order['currency'] ?? 'INR'));
     $receiptUrl = abs_url('receipt/?o=' . $order['order_no'] . '&t=' . $order['access_token']);
-    $body = '<p>Hi ' . e($order['customer_name']) . ',</p><p>Thank you! We have received your payment of <strong>' . e(inr($order['amount_paise'] / 100)) . '</strong> for <strong>' . e($order['item_title']) . '</strong>.</p>'
-        . '<p>Order: <strong>' . e($order['order_no']) . '</strong><br>Payment ID: ' . e($paymentId) . '</p><p>I will reach out within 24 hours to kick things off.</p>';
-    send_mail($order['customer_email'], "Payment received — {$order['order_no']}", email_layout('Payment received 🎉', $body, 'View receipt', $receiptUrl), ['kind' => 'order_receipt', 'lead_id' => $order['lead_id'] ?? null]);
+    $isProduct = !empty($order['product_id']);
+    if ($isProduct) {
+        db_exec('UPDATE products SET sales_count = sales_count + 1 WHERE id = ?', [(int)$order['product_id']]);
+        $downloadUrl = abs_url('download/?o=' . $order['order_no'] . '&t=' . $order['access_token']);
+        $limit = (int)setting('store_download_limit', '10');
+        $body = '<p>Hi ' . e($order['customer_name']) . ',</p><p>Thank you for buying <strong>' . e($order['item_title']) . '</strong> (' . e($amount) . '). Your PDF is ready to download.</p>'
+            . '<p>Order: <strong>' . e($order['order_no']) . '</strong><br>Payment ID: ' . e($paymentId) . '</p>'
+            . '<p>Keep this email — the button below is your personal download link' . ($limit > 0 ? ' (valid for ' . $limit . ' downloads)' : '') . '. Receipt: <a href="' . e($receiptUrl) . '">' . e($receiptUrl) . '</a></p>'
+            . '<p>Questions or a problem with the file? Just reply to this email.</p>';
+        send_mail($order['customer_email'], "Your notes are ready — {$order['item_title']}", email_layout('Your download is ready 📚', $body, 'Download PDF', $downloadUrl), ['kind' => 'order_receipt']);
+    } else {
+        $body = '<p>Hi ' . e($order['customer_name']) . ',</p><p>Thank you! We have received your payment of <strong>' . e($amount) . '</strong> for <strong>' . e($order['item_title']) . '</strong>.</p>'
+            . '<p>Order: <strong>' . e($order['order_no']) . '</strong><br>Payment ID: ' . e($paymentId) . '</p><p>I will reach out within 24 hours to kick things off.</p>';
+        send_mail($order['customer_email'], "Payment received — {$order['order_no']}", email_layout('Payment received 🎉', $body, 'View receipt', $receiptUrl), ['kind' => 'order_receipt', 'lead_id' => $order['lead_id'] ?? null]);
+    }
     $notify = setting('notify_email', setting('contact_email'));
     if ($notify) {
-        send_mail($notify, "💰 New payment: {$order['item_title']} — " . inr($order['amount_paise'] / 100), email_layout('New payment received', '<p>' . e($order['customer_name']) . ' (' . e($order['customer_email']) . ', ' . e($order['customer_phone']) . ') paid <strong>' . e(inr($order['amount_paise'] / 100)) . '</strong> for ' . e($order['item_title']) . '.</p><p>Order ' . e($order['order_no']) . '</p>', 'Open admin', abs_url('admin/orders/')), ['kind' => 'admin_notify']);
+        send_mail($notify, ($isProduct ? '📚 New store sale: ' : '💰 New payment: ') . "{$order['item_title']} — " . $amount, email_layout($isProduct ? 'New store sale' : 'New payment received', '<p>' . e($order['customer_name']) . ' (' . e($order['customer_email']) . ($order['customer_phone'] ? ', ' . e($order['customer_phone']) : '') . ') paid <strong>' . e($amount) . '</strong> for ' . e($order['item_title']) . '.</p><p>Order ' . e($order['order_no']) . '</p>', 'Open admin', abs_url('admin/orders/')), ['kind' => 'admin_notify']);
     }
+}
+
+/** "₹12,400 + $58" — paid revenue per currency for an optional extra WHERE clause. */
+function revenue_text(string $extraWhere = ''): string
+{
+    $rows = db_all("SELECT currency, COALESCE(SUM(amount_paise),0) s FROM orders WHERE status = 'paid'" . ($extraWhere ? ' AND ' . $extraWhere : '') . ' GROUP BY currency');
+    $parts = [];
+    foreach ($rows as $r) {
+        if ((int)$r['s'] > 0) {
+            $parts[$r['currency']] = money((int)$r['s'], $r['currency']);
+        }
+    }
+    ksort($parts); // INR first
+    return $parts ? implode(' + ', $parts) : inr(0);
 }
