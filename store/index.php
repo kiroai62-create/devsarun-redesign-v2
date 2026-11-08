@@ -79,9 +79,9 @@ if ($slug !== '') {
       <div class="pointer-events-none absolute -top-40 left-0 h-[28rem] w-[40rem] rounded-full bg-neo-green/[0.07] blur-3xl"></div>
       <div class="relative mx-auto max-w-6xl px-5 sm:px-6">
         <nav class="mb-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap text-sm text-white/40" aria-label="Breadcrumb"><a href="<?= e(url('')) ?>" class="hover:text-white">Home</a><span>/</span><a href="<?= e(url('store/')) ?>" class="hover:text-white">Store</a><span>/</span><span class="truncate text-white/70"><?= e($p['title']) ?></span></nav>
-        <div class="grid gap-8 lg:grid-cols-[1fr_1fr] lg:gap-12">
+        <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
           <!-- Gallery -->
-          <div>
+          <div class="min-w-0 h-fit lg:sticky lg:top-28">
             <div class="card relative overflow-hidden bg-gradient-to-br from-white/[0.06] to-white/[0.01] p-5 sm:p-8">
               <button type="button" class="group relative mx-auto block w-full max-w-[420px]" data-viewer-open="0" data-track="product_preview" data-label="<?= e($p['slug']) ?>:main" aria-label="Open the free preview">
                 <span class="block aspect-[210/297] overflow-hidden rounded-xl bg-white shadow-2xl shadow-black/60 ring-1 ring-white/10 transition duration-500 group-hover:-translate-y-1">
@@ -103,7 +103,7 @@ if ($slug !== '') {
           </div>
 
           <!-- Buy box -->
-          <div>
+          <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-widest text-white/45">
               <?php if ($p['category']): ?><span class="rounded-full border border-white/10 px-3 py-1"><?= e($p['category']) ?></span><?php endif; ?>
               <span class="rounded-full border border-white/10 px-3 py-1">PDF<?= $pages ? ' · ' . $pages . ' pages' : '' ?></span>
