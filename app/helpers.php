@@ -207,9 +207,10 @@ function price_text(array $svc): string
     if ($svc['price_from'] === null || $svc['price_from'] === '' || (int)$svc['price_from'] === 0) {
         return (string)($svc['price_label'] ?: 'Custom quote');
     }
-    $t = inr((int)$svc['price_from']);
+    $cur = service_currency($svc);
+    $t = service_money((int)$svc['price_from'], $cur);
     if (!empty($svc['price_to'])) {
-        $t .= ' – ' . inr((int)$svc['price_to']);
+        $t .= ' – ' . service_money((int)$svc['price_to'], $cur);
     }
     return $t . ($svc['price_suffix'] ?? '');
 }
@@ -344,7 +345,12 @@ function csrf_check(bool $json = false): void
 {
     if (!csrf_valid()) {
         if ($json) {
-            json_out(['ok' => false, 'error' => 'Your session expired. Please refresh the page and try again.'], 419);
+            if (function_exists('track_event')) {
+                track_event('csrf_expired', current_path());
+            }
+            // Hand back the token of the (new) session so the page's script can retry once without a reload.
+            // Safe: other origins cannot read this same-origin JSON response.
+            json_out(['ok' => false, 'error' => 'Your session expired. Please refresh the page and try again.', 'csrf' => csrf_token()], 419);
         }
         http_response_code(419);
         exit('Session expired. Please go back, refresh and try again.');

@@ -6,22 +6,36 @@
   var err = document.getElementById('checkout-error');
   var btn = form.querySelector('[type="submit"]');
   var label = btn.innerHTML;
+  var currencies = (form.getAttribute('data-currencies') || 'INR').split(',');
 
-  function fail(msg) { err.textContent = msg; err.classList.remove('hidden'); btn.disabled = false; btn.innerHTML = label; }
+  function restore() {
+    btn.disabled = false;
+    btn.innerHTML = label;
+    if (window.DA.setCurrency && window.DA.currency) window.DA.setCurrency(window.DA.currency, false); // re-apply ₹ / $ visibility
+  }
+  function fail(msg) { err.textContent = msg; err.classList.remove('hidden'); restore(); }
+  function currency() {
+    var c = window.DA.currency;
+    return currencies.indexOf(c) !== -1 ? c : currencies[0];
+  }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     err.classList.add('hidden');
     if (!form.checkValidity()) { form.reportValidity(); return; }
     if (typeof window.Razorpay !== 'function') return fail('Payment library failed to load. Please disable ad-blockers and refresh.');
+    label = btn.innerHTML;
     btn.disabled = true;
     btn.textContent = 'Opening secure payment…';
     var fd = new FormData(form);
     DA.api('order/', {
-      type: form.getAttribute('data-type'), key: form.getAttribute('data-key'),
+      type: form.getAttribute('data-type'), key: form.getAttribute('data-key'), currency: currency(),
       name: fd.get('name'), email: fd.get('email'), phone: fd.get('phone'), notes: fd.get('notes'), agree: fd.get('agree')
     }).then(function (res) {
-      if (!res.ok) return fail(res.error || 'Could not start payment.');
+      if (!res.ok) {
+        if (res.switch_currency && window.DA.setCurrency && currencies.indexOf(res.switch_currency) !== -1) window.DA.setCurrency(res.switch_currency, true);
+        return fail(res.error || 'Could not start payment.');
+      }
       var rzp = new window.Razorpay({
         key: res.key,
         amount: res.amount,
@@ -40,7 +54,7 @@
               else fail(v.error || 'Verification failed. If money was deducted, it will be confirmed automatically — contact me with order ' + res.order_no);
             });
         },
-        modal: { ondismiss: function () { btn.disabled = false; btn.innerHTML = label; } }
+        modal: { ondismiss: restore }
       });
       rzp.on('payment.failed', function (r) {
         DA.track('payment_failed', res.order_no);

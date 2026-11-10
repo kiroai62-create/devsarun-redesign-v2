@@ -20,6 +20,7 @@ if (is_file(ROOT . '/vendor/autoload.php')) {
 
 require APP . '/helpers.php';
 require APP . '/db.php';
+require APP . '/fx.php';
 
 date_default_timezone_set((string)config('timezone', 'Asia/Kolkata'));
 mb_internal_encoding('UTF-8');

@@ -25,7 +25,8 @@ if ($slug !== '') {
     $packages = service_packages($s);
     $stack = json_list($s['tech_stack'] ?? null);
     $paras = array_values(array_filter(array_map('trim', preg_split('/\n\s*\n/', (string)($s['overview'] ?: $s['description'] ?: $s['summary'])) ?: [])));
-    $buyable = (int)$s['is_buyable'] && (int)$s['buy_price'] > 0;
+    $buyable = service_buyable($s);
+    $buyAmounts = service_buy_amounts($s);
     $related = array_slice(array_values(array_filter(services_active(), static fn($x) => $x['category'] === $s['category'] && $x['id'] !== $s['id'])), 0, 3);
     if (count($related) < 3) {
         $related = array_slice(array_merge($related, array_values(array_filter(services_active(), static fn($x) => (int)$x['is_featured'] && $x['id'] !== $s['id'] && !in_array($x, $related, true)))), 0, 3);
@@ -38,7 +39,7 @@ if ($slug !== '') {
         '@graph' => array_values(array_filter([
             ['@type' => 'Service', 'name' => $s['title'], 'description' => $s['summary'], 'serviceType' => $s['title'], 'areaServed' => 'Worldwide',
                 'provider' => ['@type' => 'ProfessionalService', 'name' => setting('site_name'), 'url' => abs_url('')],
-                'offers' => $s['price_from'] ? ['@type' => 'Offer', 'priceCurrency' => 'INR', 'price' => (int)$s['price_from'], 'description' => 'Starting price, negotiable'] : null],
+                'offers' => $s['price_from'] ? ['@type' => 'Offer', 'priceCurrency' => service_currency($s), 'price' => (int)$s['price_from'], 'description' => 'Starting price, negotiable'] : null],
             ['@type' => 'BreadcrumbList', 'itemListElement' => [['@type' => 'ListItem', 'position' => 1, 'name' => 'Services', 'item' => abs_url('services/')], ['@type' => 'ListItem', 'position' => 2, 'name' => $s['title'], 'item' => abs_url('services/' . $s['slug'] . '/')]]],
             $faqs ? ['@type' => 'FAQPage', 'mainEntity' => array_map(static fn($f) => ['@type' => 'Question', 'name' => $f['q'], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f['a']]], $faqs)] : null,
         ])),
@@ -68,15 +69,15 @@ if ($slug !== '') {
               <?php if ($buyable): ?><a href="<?= e(url('checkout/?service=' . $s['slug'])) ?>" class="btn-ghost" data-track="checkout_open" data-label="<?= e($s['slug']) ?>"><?= icon('lock', 'h-4 w-4') ?> Book online</a><?php endif; ?>
             </div>
             <dl class="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.07] sm:grid-cols-4">
-              <?php foreach ([[$s['price_from'] ? 'Starting from' : 'Pricing', price_text($s)], ['Timeline', $s['timeline'] ?: 'With quote'], ['Payment', 'Milestones · Razorpay'], ['Support', 'Post-launch included']] as [$k, $v]): ?>
-                <div class="bg-neo-black px-5 py-4"><dt class="font-mono text-[10px] uppercase tracking-widest text-white/40"><?= e($k) ?></dt><dd class="mt-1.5 text-sm font-semibold text-white"><?= e($v) ?></dd></div>
+              <?php foreach ([[$s['price_from'] ? 'Starting from' : 'Pricing', service_price_html($s)], ['Timeline', e($s['timeline'] ?: 'With quote')], ['Payment', 'Milestones · Razorpay'], ['Support', 'Post-launch included']] as [$k, $v]): ?>
+                <div class="bg-neo-black px-5 py-4"><dt class="font-mono text-[10px] uppercase tracking-widest text-white/40"><?= e($k) ?></dt><dd class="mt-1.5 text-sm font-semibold text-white"><?= $v ?></dd></div>
               <?php endforeach; ?>
             </dl>
           </div>
           <aside class="card h-fit p-7 lg:sticky lg:top-28">
             <p class="font-mono text-[11px] uppercase tracking-widest text-white/40">At a glance</p>
-            <p class="mt-3 text-4xl font-extrabold tracking-tight text-neo-green"><?= e(price_text($s)) ?></p>
-            <?php if ($s['price_usd']): ?><p class="mt-1 text-sm text-white/50"><?= e($s['price_usd']) ?></p><?php endif; ?>
+            <p class="mt-3 text-4xl font-extrabold tracking-tight text-neo-green"><?= service_price_html($s) ?></p>
+            <?php if ($s['price_usd']): ?><p class="mt-1 text-sm text-white/50" data-fx-home-only><?= e($s['price_usd']) ?></p><?php endif; ?>
             <p class="mt-4 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm text-white/60"><strong class="text-white">Every price is negotiable.</strong> The final quote depends on your scope — nothing is fixed.</p>
             <ul class="mt-5 space-y-2.5 text-sm text-white/70"><?php foreach ($features as $f): ?><li class="flex gap-2"><span class="mt-0.5 text-neo-green"><?= icon('check', 'h-4 w-4') ?></span><?= e($f) ?></li><?php endforeach; ?></ul>
             <div class="mt-6 grid gap-2.5">
@@ -140,12 +141,12 @@ if ($slug !== '') {
             <?php if ($hl): ?><span class="absolute -top-3 left-7 rounded-full bg-neo-green px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-neo-black">Most chosen</span><?php endif; ?>
             <p class="font-semibold"><?= e($p['name']) ?></p>
             <p class="mt-1 text-sm text-white/45"><?= e($p['note'] ?? '') ?></p>
-            <p class="mt-5 text-3xl font-extrabold tracking-tight <?= $hl ? 'text-neo-green' : 'text-white' ?>"><?= e($p['price'] ?? '') ?></p>
+            <p class="mt-5 text-3xl font-extrabold tracking-tight <?= $hl ? 'text-neo-green' : 'text-white' ?>"><?= fx($p['price'] ?? '') ?></p>
             <p class="mt-1 text-xs text-white/35">starting price · negotiable</p>
             <ul class="mt-6 flex-1 space-y-2.5 text-sm text-white/70"><?php foreach ((array)($p['features'] ?? []) as $f): ?><li class="flex gap-2"><span class="mt-0.5 text-neo-green"><?= icon('check', 'h-4 w-4') ?></span><?= e($f) ?></li><?php endforeach; ?></ul>
             <div class="mt-7 grid gap-2">
               <button type="button" class="<?= $hl ? 'btn-primary' : 'btn-ghost' ?> btn-sm w-full" <?= enquire_attrs($s, $p['name'], 'package:' . $s['slug'] . ':' . $p['name']) ?>>Enquire about <?= e($p['name']) ?></button>
-              <?php if ($buyable && $i === 0): ?><a href="<?= e(url('checkout/?service=' . $s['slug'])) ?>" class="text-center text-xs text-white/45 hover:text-neo-green" data-track="checkout_open" data-label="<?= e($s['slug']) ?>"><?= icon('lock', 'mr-1 inline h-3 w-3') ?>or book online · <?= e(inr((int)$s['buy_price'])) ?></a><?php endif; ?>
+              <?php if ($buyable && $i === 0): ?><a href="<?= e(url('checkout/?service=' . $s['slug'])) ?>" class="text-center text-xs text-white/45 hover:text-neo-green" data-track="checkout_open" data-label="<?= e($s['slug']) ?>"><?= icon('lock', 'mr-1 inline h-3 w-3') ?>or book online · <?= isset($buyAmounts['USD']) ? fx(money($buyAmounts['USD'], 'USD')) : fx(money($buyAmounts['INR'] ?? 0, 'INR')) ?></a><?php endif; ?>
             </div>
           </div>
         <?php endforeach; ?>
@@ -261,7 +262,7 @@ if ($slug !== '') {
     <div class="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-neo-black/90 p-3 backdrop-blur-xl md:hidden">
       <div class="grid grid-cols-[auto_1fr] gap-2">
         <a href="<?= e($brochure) ?>" class="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/10 text-white/70" aria-label="Brochure" data-track="brochure_view" data-label="<?= e($s['slug']) ?>"><?= icon('download', 'h-5 w-5') ?></a>
-        <button type="button" class="btn-primary !py-3" <?= enquire_attrs($s, '', 'mobilebar:' . $s['slug']) ?>>Enquire · <?= e(price_text($s)) ?></button>
+        <button type="button" class="btn-primary !py-3" <?= enquire_attrs($s, '', 'mobilebar:' . $s['slug']) ?>>Enquire · <?= service_price_html($s) ?></button>
       </div>
     </div>
     <?php
@@ -288,7 +289,7 @@ $catIntro = [
 $guide = [
     ['I need to get online quickly', 'landing-page'], ['I want a complete company website', 'business-website'], ['I want to sell products online', 'ecommerce-store'],
     ['I need software for my operations', 'web-app'], ['I want an app on Play Store', 'android-app'], ['I get too many repeat questions', 'ai-agent'],
-    ['I want to appear in ChatGPT / AI search', 'aeo-geo-starter'], ['I want more Google traffic', 'seo'], ['My website looks old', 'website-redesign'],
+    ['I want to appear in ChatGPT / AI search', 'aeo-geo-starter'], ['I sell Notion templates and want AI to recommend them', 'notion-template-ai-visibility'], ['I want more Google traffic', 'seo'], ['My website looks old', 'website-redesign'],
 ];
 $slugs = array_column($all, null, 'slug');
 ?>
@@ -334,7 +335,7 @@ $slugs = array_column($all, null, 'slug');
   <div class="card mt-10 divide-y divide-white/[0.05] p-0">
     <?php foreach ($all as $s): ?>
       <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
-        <div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04] text-neo-green"><?= icon('file', 'h-5 w-5') ?></span><div><p class="font-medium"><?= e($s['title']) ?> — brochure</p><p class="text-xs text-white/40">PDF · <?= e(price_text($s)) ?> · negotiable</p></div></div>
+        <div class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.04] text-neo-green"><?= icon('file', 'h-5 w-5') ?></span><div><p class="font-medium"><?= e($s['title']) ?> — brochure</p><p class="text-xs text-white/40">PDF · <?= service_price_html($s) ?> · negotiable</p></div></div>
         <div class="flex gap-2"><button type="button" class="a-btn-ghost" <?= enquire_attrs($s, '', 'library:' . $s['slug']) ?>>Enquire</button><a href="<?= e(url('brochure/' . $s['slug'] . '/')) ?>" class="a-btn" data-track="brochure_view" data-label="<?= e($s['slug']) ?>"><?= icon('download', 'h-4 w-4') ?> Download</a></div>
       </div>
     <?php endforeach; ?>

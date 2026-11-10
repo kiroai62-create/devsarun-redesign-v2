@@ -59,11 +59,16 @@ if ($type === 'product') {
     $leadId = $q['lead_id'] ? (int)$q['lead_id'] : null;
 } else {
     $s = service_by_slug(preg_replace('/[^a-z0-9-]/', '', $key));
-    if (!$s || !(int)$s['is_buyable'] || (int)$s['buy_price'] <= 0) {
+    $amounts = $s ? service_buy_amounts($s) : [];
+    if (!$amounts) {
         json_out(['ok' => false, 'error' => 'This service cannot be booked online.'], 422);
     }
+    $currency = strtoupper(input('currency', 3)) === 'USD' ? 'USD' : 'INR';
+    if (!isset($amounts[$currency])) {
+        $currency = array_key_first($amounts);
+    }
     $title = $s['buy_label'] ?: $s['title'];
-    $amountPaise = (int)$s['buy_price'] * 100;
+    $amountPaise = (int)$amounts[$currency];
     $serviceId = (int)$s['id'];
 }
 if ($amountPaise < ($currency === 'USD' ? 50 : 100)) {
@@ -79,11 +84,11 @@ if (!$leadId && !$productId) {
     $leadId = db_insert('leads', [
         'ref' => lead_ref(), 'source' => 'checkout', 'service_id' => $serviceId, 'service_label' => $title, 'project_title' => 'Online booking: ' . $title,
         'description' => input('notes', 1000) ?: 'Started online checkout.', 'features' => '[]', 'name' => $name, 'email' => $email, 'phone' => $phone,
-        'status' => 'qualified', 'priority' => 'high', 'value_estimate' => (int)round($amountPaise / 100),
+        'status' => 'qualified', 'priority' => 'high', 'value_estimate' => (int)round(($currency === 'USD' ? fx_convert($amountPaise / 100, 'USD', 'INR') : $amountPaise / 100)),
         'landing' => $attr['landing'] ?: null, 'referrer' => $attr['referrer'] ?: null, 'utm_source' => $attr['utm_source'] ?: null,
         'ip_hash' => ip_hash(), 'user_agent' => user_agent(), 'created_at' => now(),
     ]);
-    lead_activity($leadId, 'checkout', 'Started online checkout for ' . $title . ' (' . inr($amountPaise / 100) . ')', false);
+    lead_activity($leadId, 'checkout', 'Started online checkout for ' . $title . ' (' . money($amountPaise, $currency) . ')', false);
 }
 
 try {

@@ -157,7 +157,7 @@ function order_mark_paid(array $order, string $paymentId, string $method = ''): 
     }
     if (!empty($order['lead_id'])) {
         db_update('leads', ['status' => 'won', 'updated_at' => now()], 'id = ?', [$order['lead_id']]);
-        lead_activity((int)$order['lead_id'], 'payment', 'Payment received: ' . inr($order['amount_paise'] / 100) . ' (' . $order['order_no'] . ')', true);
+        lead_activity((int)$order['lead_id'], 'payment', 'Payment received: ' . money((int)$order['amount_paise'], (string)($order['currency'] ?? 'INR')) . ' (' . $order['order_no'] . ')', true);
     }
     track_event('payment_success', $order['order_no'], (int)$order['service_id'] ?: null);
 

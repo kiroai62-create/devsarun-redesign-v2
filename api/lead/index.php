@@ -12,6 +12,7 @@ csrf_check(true);
 
 // Honeypot: bots fill hidden fields. Pretend success.
 if (input('website_hp') !== '') {
+    track_event('honeypot_hit', input('source', 20)); // visible in Admin → Analytics, so a wrongly blocked real visitor is noticed
     json_out(['ok' => true, 'ref' => lead_ref()]);
 }
 if (rate_limited('lead', 6, 600)) {
@@ -51,6 +52,7 @@ if ($source === 'brief') {
     if ($website === '') $errors[] = 'Please enter your website URL.';
 }
 if ($errors) {
+    track_event('lead_error', $source . ': ' . $errors[0]);
     json_out(['ok' => false, 'error' => $errors[0], 'errors' => $errors], 422);
 }
 

@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS services (
   is_buyable TINYINT(1) NOT NULL DEFAULT 0,
   buy_price INT UNSIGNED NULL,
   buy_label VARCHAR(80) NULL,
+  price_currency CHAR(3) NOT NULL DEFAULT 'INR',
+  buy_usd_cents INT UNSIGNED NULL,
   is_featured TINYINT(1) NOT NULL DEFAULT 0,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   sort_order INT NOT NULL DEFAULT 100,

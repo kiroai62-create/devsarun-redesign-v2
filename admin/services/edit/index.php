@@ -16,6 +16,7 @@ if (is_post()) {
     admin_post_guard('manager');
     $in = static fn(string $k, int $max = 400) => trim(mb_substr((string)($_POST[$k] ?? ''), 0, $max));
     $int = static function (string $k): ?int { $v = preg_replace('/\D/', '', (string)($_POST[$k] ?? '')); return $v === '' ? null : (int)$v; };
+    $cents = static function (string $k): ?int { $v = preg_replace('/[^0-9.]/', '', (string)($_POST[$k] ?? '')); return is_numeric($v) && (float)$v > 0 ? (int)round((float)$v * 100) : null; };
     $data = [
         'title' => single_line($in('title', 150)),
         'slug' => slugify($in('slug', 80) ?: $in('title', 80)),
@@ -29,6 +30,7 @@ if (is_post()) {
         'price_suffix' => $in('price_suffix', 30) ?: null,
         'price_label' => $in('price_label', 80) ?: null,
         'price_usd' => $in('price_usd', 40) ?: null,
+        'price_currency' => ($_POST['price_currency'] ?? '') === 'USD' ? 'USD' : 'INR',
         'timeline' => $in('timeline', 80) ?: null,
         'features' => json_encode(lines_to_list($in('features', 4000)), JSON_UNESCAPED_UNICODE),
         'ideal_for' => json_encode(lines_to_list($in('ideal_for', 4000)), JSON_UNESCAPED_UNICODE),
@@ -43,6 +45,7 @@ if (is_post()) {
         'tech_stack' => json_encode(array_values(array_filter(array_map('trim', explode(',', $in('tech_stack', 600))))), JSON_UNESCAPED_UNICODE),
         'is_buyable' => !empty($_POST['is_buyable']) ? 1 : 0,
         'buy_price' => $int('buy_price'),
+        'buy_usd_cents' => $cents('buy_usd'),
         'buy_label' => single_line($in('buy_label', 80)) ?: null,
         'is_featured' => !empty($_POST['is_featured']) ? 1 : 0,
         'is_active' => !empty($_POST['is_active']) ? 1 : 0,
@@ -50,7 +53,8 @@ if (is_post()) {
         'updated_at' => now(),
     ];
     if ($data['title'] === '') $errors[] = 'Title is required.';
-    if ($data['is_buyable'] && (int)$data['buy_price'] < 1) $errors[] = 'Set an online booking price (₹) or turn off online booking.';
+    if ($data['is_buyable'] && (int)$data['buy_price'] < 1 && (int)$data['buy_usd_cents'] < 1) $errors[] = 'Set an online booking price (₹ and/or $) or turn off online booking.';
+    if ($data['buy_usd_cents'] !== null && $data['buy_usd_cents'] < 50) $errors[] = 'The USD booking price must be at least $0.50.';
     if (db_val('SELECT id FROM services WHERE slug = ? AND id <> ?', [$data['slug'], $id])) $errors[] = 'That URL slug is already used.';
     if (!$errors) {
         if ($s) {
@@ -101,15 +105,18 @@ admin_start($s ? 'Edit: ' . $s['title'] : 'New service', 'services');
   <div class="space-y-4">
     <div class="a-card space-y-3">
       <h3 class="font-semibold">Pricing (always shown as negotiable)</h3>
-      <div class="grid grid-cols-2 gap-3"><div><label class="a-label">From ₹</label><input class="a-input" name="price_from" value="<?= $v('price_from') ?>" inputmode="numeric"></div><div><label class="a-label">To ₹ (range)</label><input class="a-input" name="price_to" value="<?= $v('price_to') ?>" inputmode="numeric"></div></div>
-      <div class="grid grid-cols-2 gap-3"><div><label class="a-label">Suffix</label><input class="a-input" name="price_suffix" value="<?= $v('price_suffix') ?>" placeholder="+ or /month"></div><div><label class="a-label">USD label</label><input class="a-input" name="price_usd" value="<?= $v('price_usd') ?>" placeholder="$199 one-time"></div></div>
+      <div><label class="a-label">Price currency</label><select class="a-input" name="price_currency"><option value="INR" <?= ($s['price_currency'] ?? 'INR') !== 'USD' ? 'selected' : '' ?>>₹ INR — Indian rupees</option><option value="USD" <?= ($s['price_currency'] ?? '') === 'USD' ? 'selected' : '' ?>>$ USD — US dollars</option></select></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="a-label">From</label><input class="a-input" name="price_from" value="<?= $v('price_from') ?>" inputmode="numeric" placeholder="e.g. 3500 or 11"></div><div><label class="a-label">To (range, optional)</label><input class="a-input" name="price_to" value="<?= $v('price_to') ?>" inputmode="numeric"></div></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="a-label">Suffix</label><input class="a-input" name="price_suffix" value="<?= $v('price_suffix') ?>" placeholder="+ or /month"></div><div><label class="a-label">USD label (INR services)</label><input class="a-input" name="price_usd" value="<?= $v('price_usd') ?>" placeholder="$199 one-time"></div></div>
+      <p class="text-xs text-white/35">Visitors outside India automatically see these prices (and package prices typed as ₹… or $…) converted to their own currency. If an INR service has a USD label, international visitors see that USD price converted instead.</p>
       <div><label class="a-label">Label when no price</label><input class="a-input" name="price_label" value="<?= $v('price_label') ?>" placeholder="Custom quote"></div>
       <div><label class="a-label">Typical timeline</label><input class="a-input" name="timeline" value="<?= $v('timeline') ?>"></div>
     </div>
     <div class="a-card space-y-3">
       <h3 class="font-semibold">Online booking (Razorpay)</h3>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="is_buyable" value="1" <?= !empty($s['is_buyable']) ? 'checked' : '' ?> class="accent-[#4ADE80]"> Allow booking & paying online</label>
-      <div><label class="a-label">Booking price ₹</label><input class="a-input" name="buy_price" value="<?= $v('buy_price') ?>" inputmode="numeric"></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="a-label">Booking price ₹</label><input class="a-input" name="buy_price" value="<?= $v('buy_price') ?>" inputmode="numeric"></div><div><label class="a-label">Booking price $ (USD)</label><input class="a-input" name="buy_usd" value="<?= !empty($s['buy_usd_cents']) ? e(rtrim(rtrim(number_format((int)$s['buy_usd_cents'] / 100, 2, '.', ''), '0'), '.')) : '' ?>" inputmode="decimal" placeholder="e.g. 11"></div></div>
+      <p class="text-xs text-white/35">Set ₹, $, or both. With $ set, international buyers can pay in USD (needs International payments in Razorpay). With only $ set, Indian buyers pay the ₹ equivalent at today's rate.</p>
       <div><label class="a-label">Button label</label><input class="a-input" name="buy_label" value="<?= $v('buy_label') ?>" placeholder="Book now"></div>
       <p class="text-xs text-white/35">Shown as a subtle secondary option — the page stays informative, not a shop.</p>
     </div>

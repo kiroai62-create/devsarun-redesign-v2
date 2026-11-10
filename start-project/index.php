@@ -38,7 +38,7 @@ page_start(['title' => 'Start a project', 'description' => 'Share your project b
             <label class="block">
               <input class="chip-input sr-only" type="radio" name="service" value="<?= e($s['slug']) ?>" <?= $pre === $s['slug'] ? 'checked' : '' ?> required>
               <span class="option-card">
-                <span class="flex items-center gap-3"><span class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-neo-green/10 text-neo-green"><?= icon($s['icon']) ?></span><span><span class="block font-medium"><?= e($s['title']) ?></span><span class="block text-xs text-white/45"><?= e(price_text($s)) ?> · negotiable</span></span></span>
+                <span class="flex items-center gap-3"><span class="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-neo-green/10 text-neo-green"><?= icon($s['icon']) ?></span><span><span class="block font-medium"><?= e($s['title']) ?></span><span class="block text-xs text-white/45"><?= service_price_html($s) ?> · negotiable</span></span></span>
               </span>
             </label>
           <?php endforeach; ?>

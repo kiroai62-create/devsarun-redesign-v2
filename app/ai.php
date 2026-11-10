@@ -321,7 +321,7 @@ function ai_knowledge(array $history = [], string $page = ''): string
             if ($n = json_list($s['not_included'])) {
                 $b .= 'Not included: ' . ai_clip(implode('; ', $n), 200) . "\n";
             }
-            $b .= 'Timeline: ' . ($s['timeline'] ?: 'shared with quote') . ((int)$s['is_buyable'] && (int)$s['buy_price'] > 0 ? ' | Can be booked online for ' . inr((int)$s['buy_price']) . ' at /checkout/?service=' . $s['slug'] : '') . "\n";
+            $b .= 'Timeline: ' . ($s['timeline'] ?: 'shared with quote') . (service_buyable($s) ? ' | Can be booked online for ' . service_buy_text($s) . ' at /checkout/?service=' . $s['slug'] : '') . "\n";
             if ($f = json_list($s['faqs'])) {
                 $b .= 'FAQ: ' . ai_clip(implode(' ', array_map(static fn($x) => 'Q: ' . ($x['q'] ?? '') . ' A: ' . ai_clip($x['a'] ?? '', 160), array_slice($f, 0, 4))), 900) . "\n";
             }

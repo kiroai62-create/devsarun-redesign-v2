@@ -16,6 +16,14 @@ $pipeline = (int)db_val("SELECT COALESCE(SUM(value_estimate),0) FROM leads WHERE
 $chats30 = (int)db_val('SELECT COUNT(*) FROM chat_sessions WHERE created_at >= (NOW() - INTERVAL 30 DAY)');
 $brochures30 = (int)db_val("SELECT COUNT(*) FROM events WHERE name = 'brochure_download' AND created_at >= (NOW() - INTERVAL 30 DAY)");
 $formStarts30 = (int)db_val("SELECT COUNT(DISTINCT visitor_id) FROM events WHERE name = 'form_start' AND created_at >= (NOW() - INTERVAL 30 DAY)");
+// Conversion diagnostics (events fired by the browser, so bots without JS / interaction are excluded).
+$ev30 = static fn(string $name) => (int)db_val('SELECT COUNT(DISTINCT visitor_id) FROM events WHERE name = ? AND created_at >= (NOW() - INTERVAL 30 DAY)', [$name]);
+$engaged30 = $ev30('engaged');
+$enqOpen30 = $ev30('enquire_open');
+$waClicks30 = $ev30('whatsapp_click');
+$chatOpen30 = $ev30('chat_open');
+$problems = db_all("SELECT name, label, COUNT(*) c FROM events WHERE name IN ('lead_error','csrf_expired','honeypot_hit','payment_failed') AND created_at >= (NOW() - INTERVAL 30 DAY) GROUP BY name, label ORDER BY c DESC LIMIT 10");
+$engagedSince = (string)db_val("SELECT MIN(created_at) FROM events WHERE name = 'engaged'");
 $conv = $v30 > 0 ? round($leads30 / $v30 * 100, 1) : 0;
 
 // 30-day series
@@ -56,7 +64,7 @@ admin_start('Dashboard', 'dashboard');
 <?php endif; ?>
 
 <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-  <?= admin_stat('Visitors (30d)', number_format($v30), $vToday . ' today · ' . number_format($pv30) . ' page views', 'users') ?>
+  <?= admin_stat('Visitors (30d)', number_format($v30), $vToday . ' today · ' . number_format($pv30) . ' page views · ' . number_format($engaged30) . ' engaged', 'users') ?>
   <?= admin_stat('Leads (30d)', (string)$leads30, $leadsNew . ' new · ' . $leadsAll . ' all time', 'pen') ?>
   <?= admin_stat('Conversion', $conv . '%', 'visitors → leads (30d)', 'chart') ?>
   <?= admin_stat('Revenue (30d)', $revenue30, $revenueAll . ' all time', 'lock') ?>
@@ -70,10 +78,15 @@ admin_start('Dashboard', 'dashboard');
   <div class="a-card xl:col-span-2"><div class="flex items-center justify-between"><h2 class="font-semibold">Visitors vs leads · 30 days</h2><a class="text-xs text-neo-green" href="<?= e(url('admin/analytics/')) ?>">Analytics →</a></div><div class="mt-4 h-72"><canvas data-chart="c-line"></canvas></div><script type="application/json" id="c-line"><?= json_encode($lineCfg, JSON_HEX_TAG) ?></script></div>
   <div class="a-card">
     <h2 class="font-semibold">Funnel · 30 days</h2>
-    <?php $funnel = [['Visitors', $v30], ['Started a form', $formStarts30], ['Became leads', $leads30], ['Won', (int)db_val("SELECT COUNT(*) FROM leads WHERE status='won' AND created_at >= (NOW() - INTERVAL 30 DAY)")]]; $max = max(1, $v30); ?>
+    <?php $funnel = [['Visitors (all hits)', $v30], ['Engaged (scrolled / tapped)', $engaged30], ['Opened an enquiry form', $enqOpen30], ['Started the project brief', $formStarts30], ['Clicked WhatsApp', $waClicks30], ['Opened AI chat', $chatOpen30], ['Became leads', $leads30], ['Won', (int)db_val("SELECT COUNT(*) FROM leads WHERE status='won' AND created_at >= (NOW() - INTERVAL 30 DAY)")]]; $max = max(1, $v30); ?>
     <div class="mt-5 space-y-4">
       <?php foreach ($funnel as [$l, $n]): ?><div><div class="mb-1.5 flex justify-between text-sm"><span class="text-white/60"><?= e($l) ?></span><span class="font-semibold"><?= number_format($n) ?></span></div><div class="h-2 rounded-full bg-white/[0.05]"><div class="h-full rounded-full bg-neo-green" style="width:<?= max(2, min(100, round($n / $max * 100))) ?>%"></div></div></div><?php endforeach; ?>
     </div>
+    <p class="mt-4 text-xs text-white/35"><?= $engagedSince ? '“Engaged” is tracked since ' . e(date('d M Y', strtotime($engagedSince))) . '. ' : '“Engaged” starts counting after this update. ' ?>A big gap between visitors and engaged visitors means most hits are bots or link previews. WhatsApp clicks are enquiries that don't appear as leads.</p>
+    <?php if ($problems): ?>
+      <h3 class="mt-5 text-sm font-semibold">Failed or blocked attempts · 30 days</h3>
+      <ul class="mt-2 space-y-1.5 text-xs text-white/60"><?php foreach ($problems as $p): ?><li class="flex justify-between gap-3"><span class="truncate"><?= e(['lead_error' => 'Form error', 'csrf_expired' => 'Session expired (auto-retried)', 'honeypot_hit' => 'Spam trap hit', 'payment_failed' => 'Payment failed'][$p['name']] ?? $p['name']) ?><?= $p['label'] ? ' — ' . e($p['label']) : '' ?></span><span class="font-semibold text-white"><?= (int)$p['c'] ?></span></li><?php endforeach; ?></ul>
+    <?php endif; ?>
   </div>
 </div>
 
