@@ -14,8 +14,11 @@ PHP 8.1+ · MySQL 5.7+/MariaDB 10.4+ · Tailwind CSS · vanilla JS. Vendor libra
 - **Razorpay**: book selected services online, or pay negotiated quotes via secure links. Signature-verified + webhook.
 - Client **tracking page** with status timeline and public updates.
 - First-party analytics (no IPs stored), UTM / referrer attribution on every lead.
+- **Local-currency prices**: visitors outside India see every service and package price converted to their own currency (country from Cloudflare's `CF-IPCountry`, else browser timezone / language; footer selector to change). Rates come from the free [ExchangeRate-API](https://www.exchangerate-api.com) open endpoint, cached 12 h with a built-in fallback table (`app/fx.php`). Display only: payments are charged in ₹ or $.
+- **Per-service currency**: a service can be priced in ₹ or $. Online booking can have a ₹ price, a $ price (international cards), or both; with only a $ price, Indian buyers pay the ₹ equivalent at today's rate.
+- **Conversion diagnostics**: the dashboard funnel separates raw hits from *engaged* visitors (first scroll / tap), and lists failed form submissions, expired sessions and spam-trap hits. Expired sessions no longer lose an enquiry: the API returns a fresh CSRF token and the page retries once.
 
-**Admin** (`/admin/`): dashboard & funnel, leads CRM (status, priority, value, follow-ups, notes, client-visible updates, email, quotes, CSV export, attachments), AI chat transcripts, payments, quotes/payment links, email center (SMTP, templates, segment emails, log), analytics, services/portfolio/testimonials editors, settings (SMTP, Razorpay, AI, branding — upload your own logo/favicon), team roles (owner/manager/viewer), audit log.
+**Admin** (`/admin/`): dashboard & funnel, leads CRM (status, priority, value, follow-ups, notes, client-visible updates, email, quotes, CSV export, attachments), AI chat transcripts, payments, quotes/payment links, email center (SMTP, templates, segment emails, log), analytics, services editor (quick price table, duplicate a service to add a new one) + portfolio/testimonials editors, settings (SMTP, Razorpay, AI, branding — upload your own logo/favicon), team roles (owner/manager/viewer), audit log.
 
 **Security**: PDO prepared statements, CSRF on every form/API, bcrypt passwords, login lockout, session hardening, rate limits, honeypots, CSP & security headers, secrets encrypted (AES-256-GCM), uploads type-checked and stored outside the web root, brand images re-encoded, private folders blocked by `.htaccess`.
 

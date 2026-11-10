@@ -5,14 +5,29 @@
   var BASE = document.body.getAttribute('data-base') || '';
   var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
-  function api(path, data) {
+  /* The server answers 419 + a fresh token when the session expired (e.g. the tab was open for hours).
+     Store it and retry once, so a visitor never loses an enquiry to "session expired". */
+  function setCsrf(t) {
+    CSRF = t;
+    if (window.DA) window.DA.csrf = t;
+    var m = document.querySelector('meta[name="csrf-token"]');
+    if (m) m.setAttribute('content', t);
+  }
+
+  function api(path, data, retried) {
     return fetch(BASE + '/api/' + path, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-Token': CSRF },
       body: JSON.stringify(data || {})
     }).then(function (r) {
-      return r.json().catch(function () { return { ok: false, error: 'Unexpected server response.' }; });
+      return r.json().catch(function () { return { ok: false, error: 'Unexpected server response.' }; }).then(function (res) {
+        if (r.status === 419 && res && res.csrf && !retried) {
+          setCsrf(res.csrf);
+          return api(path, data, true);
+        }
+        return res;
+      });
     }).catch(function () { return { ok: false, error: 'Network error. Please check your connection.' }; });
   }
 
@@ -38,7 +53,103 @@
     } catch (e) { /* ignore */ }
   }
 
-  window.DA = { api: api, toast: toast, track: track, base: BASE, csrf: CSRF };
+  window.DA = { api: api, toast: toast, track: track, base: BASE, csrf: CSRF, setCsrf: setCsrf };
+
+  /* Engaged-visitor signal: fires once per browser session on the first real interaction.
+     Bots and link previews rarely scroll or tap, so admin can compare real visitors with raw hits. */
+  (function () {
+    var key = 'da_eng';
+    try { if (sessionStorage.getItem(key)) return; } catch (e) { /* private mode */ }
+    var evs = ['scroll', 'pointerdown', 'keydown', 'touchstart'];
+    var fire = function () {
+      evs.forEach(function (n) { window.removeEventListener(n, fire, true); });
+      try { sessionStorage.setItem(key, '1'); } catch (e) { /* ignore */ }
+      track('engaged', location.pathname);
+    };
+    evs.forEach(function (n) { window.addEventListener(n, fire, { capture: true, passive: true }); });
+  })();
+
+  /* ---------------- Local currency for prices ----------------
+     Every price is rendered as <span data-fx="3500" data-fx-from="INR">₹3,500</span>.
+     We pick the visitor's currency (saved choice → Cloudflare country → timezone → browser language → USD)
+     and rewrite the text using the rates in <meta name="fx">. */
+  var FX = null;
+  try { FX = JSON.parse((document.querySelector('meta[name="fx"]') || {}).content || 'null'); } catch (e) { FX = null; }
+  var TZ_COUNTRY = {
+    'Asia/Kolkata': 'IN', 'Asia/Calcutta': 'IN', 'Europe/London': 'GB', 'Europe/Dublin': 'IE', 'Europe/Berlin': 'DE', 'Europe/Paris': 'FR',
+    'Europe/Madrid': 'ES', 'Europe/Rome': 'IT', 'Europe/Amsterdam': 'NL', 'Europe/Brussels': 'BE', 'Europe/Vienna': 'AT', 'Europe/Zurich': 'CH',
+    'Europe/Stockholm': 'SE', 'Europe/Oslo': 'NO', 'Europe/Copenhagen': 'DK', 'Europe/Warsaw': 'PL', 'Europe/Prague': 'CZ', 'Europe/Budapest': 'HU',
+    'Europe/Bucharest': 'RO', 'Europe/Istanbul': 'TR', 'Europe/Moscow': 'RU', 'Europe/Kiev': 'UA', 'Europe/Kyiv': 'UA', 'Europe/Lisbon': 'PT',
+    'Europe/Helsinki': 'FI', 'Europe/Athens': 'GR', 'Asia/Dubai': 'AE', 'Asia/Riyadh': 'SA', 'Asia/Qatar': 'QA', 'Asia/Kuwait': 'KW',
+    'Asia/Bahrain': 'BH', 'Asia/Muscat': 'OM', 'Asia/Singapore': 'SG', 'Asia/Kuala_Lumpur': 'MY', 'Asia/Tokyo': 'JP', 'Asia/Shanghai': 'CN',
+    'Asia/Hong_Kong': 'HK', 'Asia/Seoul': 'KR', 'Asia/Taipei': 'TW', 'Asia/Bangkok': 'TH', 'Asia/Jakarta': 'ID', 'Asia/Manila': 'PH',
+    'Asia/Ho_Chi_Minh': 'VN', 'Asia/Saigon': 'VN', 'Asia/Kathmandu': 'NP', 'Asia/Katmandu': 'NP', 'Asia/Dhaka': 'BD', 'Asia/Colombo': 'LK',
+    'Asia/Karachi': 'PK', 'Asia/Jerusalem': 'IL', 'Asia/Tel_Aviv': 'IL', 'Pacific/Auckland': 'NZ', 'Africa/Johannesburg': 'ZA', 'Africa/Lagos': 'NG',
+    'Africa/Nairobi': 'KE', 'Africa/Cairo': 'EG', 'America/Toronto': 'CA', 'America/Vancouver': 'CA', 'America/Edmonton': 'CA', 'America/Winnipeg': 'CA',
+    'America/Halifax': 'CA', 'America/Mexico_City': 'MX', 'America/Sao_Paulo': 'BR', 'America/Argentina/Buenos_Aires': 'AR', 'America/Buenos_Aires': 'AR',
+    'America/Santiago': 'CL', 'America/Bogota': 'CO', 'America/Lima': 'PE'
+  };
+  function guessCountry() {
+    var tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* ignore */ }
+    if (TZ_COUNTRY[tz]) return TZ_COUNTRY[tz];
+    if (/^Australia\//.test(tz)) return 'AU';
+    if (/^America\//.test(tz)) return 'US';
+    var langs = navigator.languages || [navigator.language || ''];
+    for (var i = 0; i < langs.length; i++) {
+      var m = /-([A-Z]{2})$/i.exec(langs[i] || '');
+      if (m) return m[1].toUpperCase();
+    }
+    return '';
+  }
+  function fxTarget() {
+    if (!FX || !FX.rates) return 'INR';
+    var saved = readCookie('da_fx');
+    if (saved && FX.rates[saved]) return saved;
+    if (FX.cur && FX.rates[FX.cur]) return FX.cur;
+    var cc = guessCountry();
+    var cur = cc && FX.map ? FX.map[cc] : '';
+    return cur && FX.rates[cur] ? cur : (cc === 'IN' ? 'INR' : 'USD');
+  }
+  function fxFormat(v, cur) {
+    var small = v < 20;
+    if (!small) v = Math.round(v);
+    var loc = cur === 'INR' ? 'en-IN' : (navigator.language || 'en-US');
+    try {
+      return new Intl.NumberFormat(loc, { style: 'currency', currency: cur, minimumFractionDigits: 0, maximumFractionDigits: small ? 2 : 0 }).format(v);
+    } catch (e) { return cur + ' ' + (small ? v.toFixed(2) : String(v)); }
+  }
+  function applyFx(target) {
+    if (!FX || !FX.rates || !FX.rates[target]) return;
+    var converted = false;
+    document.querySelectorAll('[data-fx]').forEach(function (el) {
+      if (!el.hasAttribute('data-fx-orig')) el.setAttribute('data-fx-orig', el.textContent);
+      var orig = el.getAttribute('data-fx-orig');
+      var from = el.getAttribute('data-fx-from');
+      var amt = parseFloat(el.getAttribute('data-fx'));
+      var intl = parseFloat(el.getAttribute('data-fx-intl') || '');
+      var src = orig;
+      if (target !== 'INR' && intl > 0) { from = 'USD'; amt = intl; src = '$' + intl; } // owner-set international price
+      if (from === target && src === orig) { el.textContent = orig; el.removeAttribute('title'); return; }
+      if (!FX.rates[from] || !(amt > 0)) return;
+      el.textContent = fxFormat(amt / FX.rates[from] * FX.rates[target], target);
+      if (from !== target) { el.title = 'Approx. conversion of ' + src; converted = true; } else { el.removeAttribute('title'); }
+    });
+    document.querySelectorAll('[data-fx-same-hide]').forEach(function (el) { el.classList.toggle('hidden', el.getAttribute('data-fx-same-hide') === target); });
+    document.querySelectorAll('[data-fx-home-only]').forEach(function (el) { el.classList.toggle('hidden', target !== 'INR'); });
+    document.querySelectorAll('[data-fx-select]').forEach(function (sel) { sel.value = target; });
+    document.querySelectorAll('[data-fx-approx]').forEach(function (el) { el.classList.toggle('hidden', !converted); });
+    window.DA.fxCurrency = target;
+  }
+  applyFx(fxTarget());
+  document.addEventListener('change', function (e) {
+    var sel = e.target.closest ? e.target.closest('[data-fx-select]') : null;
+    if (!sel) return;
+    document.cookie = 'da_fx=' + sel.value + '; path=' + (BASE || '') + '/; max-age=31536000; samesite=lax';
+    applyFx(sel.value);
+    if (window.DA.setCurrency) window.DA.setCurrency(sel.value === 'INR' ? 'INR' : 'USD', true); // store / checkout pay currency
+  });
+  window.DA.applyFx = applyFx;
 
   /* Store currency (INR / USD). Prices carry data-cur-show; toggles carry data-set-cur. */
   function readCookie(n) { var m = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
@@ -58,9 +169,7 @@
     var saved = readCookie('da_cur');
     if (saved) { setCurrency(saved, false); return; }
     if (!document.querySelector('[data-cur-show],[data-set-cur]')) return;
-    var tz = '';
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* ignore */ }
-    setCurrency(/Calcutta|Kolkata/i.test(tz) ? 'INR' : 'USD', true);
+    setCurrency(fxTarget() === 'INR' ? 'INR' : 'USD', false);
   })();
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-set-cur]');

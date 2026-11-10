@@ -100,7 +100,7 @@ page_start(['active' => 'home']);
         <?php foreach ([['01 / Ask', 'A customer asks AI for a service or recommendation.'], ['02 / Appear', 'Your content may be cited or your business mentioned.'], ['03 / Enquire', 'Interested users visit, call or enquire.']] as [$t, $d]): ?>
           <div class="rounded-3xl border border-white/10 bg-neo-black/50 p-5 backdrop-blur"><p class="text-lg font-bold"><?= e($t) ?></p><p class="mt-2 text-sm text-white/55"><?= e($d) ?></p></div>
         <?php endforeach; ?>
-        <div class="rounded-3xl border border-neo-green/20 bg-neo-black/50 p-5 sm:col-span-3 lg:col-span-1 xl:col-span-3"><p class="font-mono text-xs uppercase tracking-widest text-white/40">Starter · one-time</p><p class="mt-1 text-3xl font-extrabold text-neo-green"><?= e($aeo['price_usd'] ?: price_text($aeo)) ?></p><p class="text-xs text-white/40">≈ <?= e(price_text($aeo)) ?> · negotiable</p></div>
+        <div class="rounded-3xl border border-neo-green/20 bg-neo-black/50 p-5 sm:col-span-3 lg:col-span-1 xl:col-span-3"><p class="font-mono text-xs uppercase tracking-widest text-white/40">Starter · one-time</p><p class="mt-1 text-3xl font-extrabold text-neo-green"><?= e($aeo['price_usd'] ?: price_text($aeo)) ?></p><p class="text-xs text-white/40"><span class="hidden" data-fx-same-hide="USD">≈ <?= service_price_html($aeo) ?> · </span>negotiable</p></div>
       </div>
     </div>
   </div>

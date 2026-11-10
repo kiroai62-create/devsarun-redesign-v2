@@ -78,11 +78,11 @@ $card = 'rounded-[28px] border border-white/[0.07] bg-white/[0.025] p-7';
       <div>
         <p class="font-mono text-xs uppercase tracking-widest text-white/50">AEO + GEO Starter / one-time</p>
         <p class="mt-3 text-7xl font-extrabold tracking-tight">$199</p>
-        <p class="mt-2 text-white/50">≈ <?= e(price_text($s)) ?> · negotiable</p>
+        <p class="mt-2 text-white/50"><span class="hidden" data-fx-same-hide="USD">≈ <?= service_price_html($s) ?> · </span>negotiable</p>
         <p class="mt-6 text-lg font-semibold">One website. A focused start.</p>
         <div class="mt-7 grid gap-2.5">
           <a href="<?= e(url('start-project/?service=aeo-geo-starter')) ?>" class="btn-primary">Start with AEO + GEO</a>
-          <?php if ((int)$s['is_buyable']): ?><a href="<?= e(url('checkout/?service=aeo-geo-starter')) ?>" class="btn-ghost" data-track="checkout_open" data-label="aeo-geo-starter"><?= icon('lock', 'h-4 w-4') ?> Book & pay online</a><?php endif; ?>
+          <?php if (service_buyable($s)): ?><a href="<?= e(url('checkout/?service=aeo-geo-starter')) ?>" class="btn-ghost" data-track="checkout_open" data-label="aeo-geo-starter"><?= icon('lock', 'h-4 w-4') ?> Book & pay online</a><?php endif; ?>
         </div>
       </div>
       <div class="grid gap-3 sm:grid-cols-2">

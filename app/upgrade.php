@@ -6,7 +6,7 @@ declare(strict_types=1);
  * (from bootstrap, or from the installer on a fresh install).
  */
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function run_upgrades(PDO $pdo): void
 {
@@ -75,6 +75,37 @@ function run_upgrades(PDO $pdo): void
         }
         $pdo->exec("UPDATE settings SET v = 'gemini-2.5-flash' WHERE k = 'ai_model' AND v = 'gemini-2.0-flash'");
         $pdo->exec("UPDATE settings SET v = 'openai/gpt-oss-120b' WHERE k = 'ai_model' AND v IN ('llama-3.3-70b-versatile', 'llama-3.1-8b-instant')");
+    }
+
+    if ($current < 4) {
+        // v4: per-service price currency (INR / USD), USD online booking, Notion template AI visibility service.
+        $have = $columns('services');
+        foreach (['price_currency' => "CHAR(3) NOT NULL DEFAULT 'INR' AFTER price_usd", 'buy_usd_cents' => 'INT UNSIGNED NULL AFTER buy_price'] as $col => $def) {
+            if (!in_array($col, $have, true)) {
+                $pdo->exec("ALTER TABLE services ADD COLUMN `$col` $def");
+            }
+        }
+        $svc = require dirname(__DIR__) . '/database/service_notion.php';
+        $exists = $pdo->prepare('SELECT COUNT(*) FROM services WHERE slug = ?');
+        $exists->execute([$svc['slug']]);
+        if (!(int)$exists->fetchColumn()) {
+            $j = static fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE);
+            $row = [
+                'slug' => $svc['slug'], 'title' => $svc['title'], 'category' => $svc['category'], 'icon' => $svc['icon'],
+                'tagline' => $svc['tagline'], 'summary' => $svc['summary'], 'description' => $svc['description'], 'overview' => $svc['overview'],
+                'price_currency' => $svc['price_currency'], 'price_from' => $svc['price_from'], 'price_suffix' => $svc['price_suffix'], 'timeline' => $svc['timeline'],
+                'features' => $j($svc['features']), 'ideal_for' => $j($svc['ideal_for']), 'not_included' => $j($svc['not_included']),
+                'benefits' => $j(array_map(static fn($b) => ['title' => $b[0], 'desc' => $b[1]], $svc['benefits'])),
+                'packages' => $j(array_map(static fn($p) => ['name' => $p[0], 'price' => $p[1], 'note' => $p[2], 'features' => $p[3]], $svc['packages'])),
+                'deliverables' => $j(array_map(static fn($d) => ['title' => $d[0], 'desc' => $d[1]], $svc['deliverables'])),
+                'process' => $j(array_map(static fn($p) => ['stage' => $p[0], 'work' => $p[1], 'input' => $p[2], 'receive' => $p[3]], $svc['process'])),
+                'faqs' => $j(array_map(static fn($f) => ['q' => $f[0], 'a' => $f[1]], $svc['faqs'])),
+                'tech_stack' => $j($svc['tech_stack']), 'keywords' => $svc['keywords'],
+                'is_buyable' => $svc['is_buyable'], 'buy_usd_cents' => $svc['buy_usd_cents'], 'buy_label' => $svc['buy_label'],
+                'is_featured' => $svc['is_featured'], 'is_active' => 1, 'sort_order' => $svc['sort_order'], 'created_at' => date('Y-m-d H:i:s'),
+            ];
+            $pdo->prepare('INSERT INTO services (`' . implode('`,`', array_keys($row)) . '`) VALUES (' . implode(',', array_fill(0, count($row), '?')) . ')')->execute(array_values($row));
+        }
     }
 
     $pdo->prepare("INSERT INTO settings (k, v) VALUES ('schema_version', ?) ON DUPLICATE KEY UPDATE v = VALUES(v)")->execute([(string)SCHEMA_VERSION]);

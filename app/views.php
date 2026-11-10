@@ -57,6 +57,7 @@ function page_start(array $meta = []): void
 <?php if (!empty($meta['noindex'])): ?><meta name="robots" content="noindex, nofollow"><?php endif; ?>
 <meta name="theme-color" content="#0A0A0A">
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+<meta name="fx" content="<?= e(fx_meta_json()) ?>">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="<?= e($site) ?>">
 <meta property="og:title" content="<?= e($title) ?>">
@@ -173,6 +174,13 @@ function page_end(): void
   <div class="border-t border-white/[0.06]">
     <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-5 py-6 text-xs text-white/40 sm:flex-row sm:px-6">
       <p>© <?= date('Y') ?> <?= e($site) ?>. Service prices are always negotiable.</p>
+      <p class="flex flex-wrap items-center justify-center gap-1.5" data-fx-bar>
+        <label for="fx-select">Prices shown in</label>
+        <select id="fx-select" data-fx-select class="rounded-full border border-white/10 bg-neo-black px-2 py-1 text-xs text-white/70 focus:border-neo-green/40 focus:outline-none">
+          <?php foreach (array_keys(FX_FALLBACK) as $c): ?><option value="<?= e($c) ?>"><?= e($c) ?></option><?php endforeach; ?>
+        </select>
+        <span class="hidden" data-fx-approx>· approx. at today's rate (<a class="underline hover:text-white" href="https://www.exchangerate-api.com" target="_blank" rel="noopener">Rates By Exchange Rate API</a>), billed in ₹ or $</span>
+      </p>
       <p class="font-mono"><span class="text-neo-green">●</span> <?= e(setting('availability', 'Accepting new projects')) ?></p>
     </div>
   </div>
@@ -262,7 +270,7 @@ function service_card(array $s): void
         <div class="flex items-end justify-between border-t border-white/[0.06] pt-5">
           <div>
             <p class="font-mono text-[10px] uppercase tracking-widest text-white/35"><?= $s['price_from'] ? 'Starting from' : 'Pricing' ?></p>
-            <p class="mt-1 text-lg font-bold text-neo-green"><?= e(price_text($s)) ?></p>
+            <p class="mt-1 text-lg font-bold text-neo-green"><?= service_price_html($s) ?></p>
           </div>
           <span class="text-[11px] text-white/35">negotiable</span>
         </div>

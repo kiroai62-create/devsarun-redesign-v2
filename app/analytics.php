@@ -8,12 +8,19 @@ const TRACKABLE_EVENTS = [
     'form_submit', 'contact_submit', 'checkout_open', 'payment_success', 'payment_failed', 'whatsapp_click',
     'outbound_click', 'service_view', 'audit_request', 'track_lookup', 'quote_view', 'enquiry_submit', 'enquire_open',
     'product_view', 'product_preview', 'buy_click', 'product_download',
+    // Conversion diagnostics: real (interacting) visitors, failed / blocked submissions, expired sessions.
+    'engaged', 'lead_error', 'honeypot_hit', 'csrf_expired',
 ];
 
 function is_bot(): bool
 {
     $ua = strtolower(user_agent());
-    return $ua === '' || (bool)preg_match('/bot|crawl|spider|slurp|preview|headless|lighthouse|curl|wget|python|monitor/i', $ua);
+    // Crawlers, link-preview fetchers (WhatsApp, Facebook…), AI fetchers, uptime checkers, HTTP libraries and scanners.
+    return $ua === '' || strlen($ua) < 20 || (bool)preg_match('/bot|crawl|spider|slurp|preview|headless|lighthouse|curl|wget|python|monitor'
+        . '|facebookexternalhit|meta-externalagent|whatsapp\\/|embedly|vkshare|qwantify'
+        . '|google-|googleother|feedfetcher|chatgpt|gpt|openai|perplexity|claude|anthropic|cohere|bytespider|petalsearch|yandex|baidu'
+        . '|go-http|axios|node-fetch|undici|okhttp|java\/|libwww|httpclient|http_request|guzzle|scrapy|postman|insomnia|phantom|selenium|puppeteer|playwright'
+        . '|uptime|pingdom|statuscake|site24x7|newrelic|datadog|semrush|ahrefs|mj12|dotbot|dataforseo|serpstat|screaming frog|zgrab|masscan|nmap|nikto|sqlmap|nuclei|wpscan|censys|shodan|expanse/i', $ua);
 }
 
 function visitor_id(): string

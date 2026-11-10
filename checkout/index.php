@@ -5,7 +5,7 @@ require APP . '/checkout_view.php';
 
 $slug = preg_replace('/[^a-z0-9-]/', '', (string)($_GET['service'] ?? ''));
 $s = $slug ? service_by_slug($slug) : null;
-if (!$s || !(int)$s['is_buyable'] || (int)$s['buy_price'] <= 0) {
+if (!$s || !service_buyable($s)) {
     redirect($s ? 'services/' . $s['slug'] . '/' : 'services/');
 }
 track_event('checkout_open', $s['slug'], (int)$s['id']);
@@ -14,6 +14,6 @@ render_checkout([
     'key' => $s['slug'],
     'title' => $s['buy_label'] ?: $s['title'],
     'desc' => $s['summary'],
-    'amount' => (int)$s['buy_price'],
+    'amounts' => service_buy_amounts($s),
     'lines' => json_list($s['features']),
 ]);

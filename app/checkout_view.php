@@ -3,10 +3,23 @@ declare(strict_types=1);
 
 /**
  * Shared checkout UI for service bookings (/checkout/) and negotiated quotes (/pay/).
- * $item = ['type' => 'service'|'quote', 'key' => slug|token, 'title', 'desc', 'amount' (INR int), 'lines' => [], 'prefill' => []]
+ * $item = ['type' => 'service'|'quote', 'key' => slug|token, 'title', 'desc', 'lines' => [], 'prefill' => [],
+ *          'amounts' => ['INR' => paise, 'USD' => cents]  (or legacy 'amount' => whole rupees)]
+ * With both currencies the visitor can switch (data-set-cur); the API charges the chosen one.
  */
 function render_checkout(array $item): void
 {
+    $amounts = $item['amounts'] ?? ['INR' => (int)($item['amount'] ?? 0) * 100];
+    $currencies = array_keys($amounts);
+    $both = count($currencies) > 1;
+    $show = in_array(store_currency(), $currencies, true) ? store_currency() : $currencies[0];
+    $amountHtml = static function (string $size) use ($amounts, $both, $show): string {
+        $h = '';
+        foreach ($amounts as $c => $minor) {
+            $h .= '<span class="' . ($both && $c !== $show ? 'hidden ' : '') . $size . '"' . ($both ? ' data-cur-show="' . $c . '"' : '') . '>' . e(money($minor, $c)) . '</span>';
+        }
+        return $h;
+    };
     page_script('https://checkout.razorpay.com/v1/checkout.js');
     page_script(asset('js/checkout.js'));
     page_start(['title' => 'Secure checkout — ' . $item['title'], 'noindex' => true]);
@@ -24,7 +37,7 @@ function render_checkout(array $item): void
           <div class="mt-8 rounded-3xl border border-white/[0.07] bg-white/[0.02] p-5 text-sm text-white/60">
             <p class="font-medium text-white">How this works</p>
             <ol class="mt-2 list-decimal space-y-1 pl-5">
-              <li>Pay securely via Razorpay (UPI, cards, netbanking, wallets).</li>
+              <li>Pay securely via Razorpay (UPI, cards, netbanking, wallets<?= isset($amounts['USD']) ? '; international cards in USD' : '' ?>).</li>
               <li>You get an instant receipt by email.</li>
               <li>I contact you within 24 hours to collect details and kick off.</li>
             </ol>
@@ -35,19 +48,29 @@ function render_checkout(array $item): void
         <div class="card h-fit p-7 sm:p-9">
           <div class="flex items-end justify-between border-b border-white/[0.06] pb-5">
             <span class="text-sm text-white/50">Amount payable</span>
-            <span class="text-3xl font-extrabold text-neo-green"><?= e(inr($item['amount'])) ?></span>
+            <span class="text-right"><span class="block text-3xl font-extrabold text-neo-green"><?= $amountHtml('') ?></span>
+              <?php foreach ($amounts as $c => $minor): ?><span class="<?= $both && $c !== $show ? 'hidden ' : '' ?>block text-xs text-white/45"<?= $both ? ' data-cur-show="' . $c . '"' : '' ?>><span class="hidden" data-fx-same-hide="<?= $c ?>">≈ <?= fx(money($minor, $c)) ?> in your currency</span></span><?php endforeach; ?>
+            </span>
           </div>
+          <?php if ($both): ?>
+            <div class="mt-4 flex items-center justify-between gap-3 text-sm text-white/55"><span>Pay in</span>
+              <div class="inline-flex rounded-full border border-white/10 p-1 text-xs font-semibold" role="group" aria-label="Payment currency">
+                <button type="button" data-set-cur="INR" aria-pressed="<?= $show === 'INR' ? 'true' : 'false' ?>" class="cur-btn rounded-full px-3 py-1.5 <?= $show === 'INR' ? 'is-active' : '' ?>">₹ INR</button>
+                <button type="button" data-set-cur="USD" aria-pressed="<?= $show === 'USD' ? 'true' : 'false' ?>" class="cur-btn rounded-full px-3 py-1.5 <?= $show === 'USD' ? 'is-active' : '' ?>">$ USD</button>
+              </div>
+            </div>
+          <?php endif; ?>
           <?php if (!razorpay_enabled()): ?>
             <div class="mt-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">Online payments are being set up right now. Please <a class="font-semibold underline" href="<?= e(url('start-project/')) ?>">send your brief</a> or message on WhatsApp — I'll share a payment link.</div>
           <?php else: ?>
-          <form id="checkout" class="mt-6 grid gap-4" data-type="<?= e($item['type']) ?>" data-key="<?= e($item['key']) ?>" novalidate>
+          <form id="checkout" class="mt-6 grid gap-4" data-type="<?= e($item['type']) ?>" data-key="<?= e($item['key']) ?>" data-currencies="<?= e(implode(',', $currencies)) ?>" novalidate>
             <div><label class="label" for="c-name">Full name</label><input id="c-name" class="field" name="name" maxlength="120" required value="<?= e($pre['name'] ?? '') ?>" autocomplete="name"></div>
             <div><label class="label" for="c-email">Email</label><input id="c-email" class="field" type="email" name="email" maxlength="190" required value="<?= e($pre['email'] ?? '') ?>" autocomplete="email"></div>
             <div><label class="label" for="c-phone">Phone / WhatsApp</label><input id="c-phone" class="field" type="tel" name="phone" maxlength="20" required value="<?= e($pre['phone'] ?? '') ?>" autocomplete="tel"></div>
             <div><label class="label" for="c-notes">Notes (optional)</label><textarea id="c-notes" class="field min-h-[90px]" name="notes" maxlength="1000" placeholder="Website URL, deadline, anything I should know"></textarea></div>
             <label class="flex items-start gap-3 text-xs text-white/55"><input type="checkbox" name="agree" value="1" required class="mt-0.5 h-4 w-4 accent-[#4ADE80]"> I agree to the <a class="text-neo-green hover:underline" href="<?= e(url('terms/')) ?>" target="_blank">terms</a> and <a class="text-neo-green hover:underline" href="<?= e(url('refund-policy/')) ?>" target="_blank">refund policy</a>.</label>
             <p id="checkout-error" class="hidden rounded-2xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200" role="alert"></p>
-            <button type="submit" class="btn-primary w-full"><?= icon('lock', 'h-4 w-4') ?> Pay <?= e(inr($item['amount'])) ?> securely</button>
+            <button type="submit" class="btn-primary w-full"><?= icon('lock', 'h-4 w-4') ?> Pay <?= $amountHtml('') ?> securely</button>
             <p class="text-center text-xs text-white/35">Payments processed by Razorpay. Card details never touch this website.</p>
           </form>
           <?php endif; ?>

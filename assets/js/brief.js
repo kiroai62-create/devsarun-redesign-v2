@@ -77,8 +77,17 @@
     var label = submit.innerHTML;
     submit.textContent = 'Sending…';
     var fd = new FormData(form);
-    fetch(DA.base + '/api/lead/', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': DA.csrf, 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
+    var post = function (retried) {
+      return fetch(DA.base + '/api/lead/', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-CSRF-Token': DA.csrf, 'Accept': 'application/json' } })
+        .then(function (r) {
+          return r.json().then(function (res) {
+            // Session expired while the visitor was filling the brief: take the fresh token and resend once.
+            if (r.status === 419 && res.csrf && !retried) { DA.setCsrf(res.csrf); return post(true); }
+            return res;
+          });
+        });
+    };
+    post(false)
       .then(function (res) {
         submit.disabled = false;
         submit.innerHTML = label;
